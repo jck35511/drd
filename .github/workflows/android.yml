@@ -63,6 +63,11 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - name: Reuse development signing key
+        uses: actions/cache@v4
+        with:
+          path: work/debug.keystore
+          key: meongrandy-debug-signing-v1
       - name: Prepare project and export dependencies
         run: |
           python3 tools/prepare_project.py
@@ -77,15 +82,17 @@ jobs:
           mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
           cp work/export/templates/android_debug.apk "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          keytool -genkeypair -keystore work/debug.keystore -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          if [ ! -f work/debug.keystore ]; then
+            keytool -genkeypair -keystore work/debug.keystore -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
           python3 tools/configure_android.py
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-Step29-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-Step29-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-Step29-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-Step29-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.1-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.1-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.1-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.29.1-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -114,6 +121,10 @@ jobs:
         with:
           name: MeongRandy-Step29-Android-and-source
           path: build
+      - uses: actions/download-artifact@v4
+        with:
+          name: sky-castle-verification
+          path: work/verification
       - name: Install screenshot helper
         run: python3 -m pip install Pillow
       - name: Enable emulator acceleration

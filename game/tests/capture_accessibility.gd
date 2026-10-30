@@ -26,5 +26,13 @@ func run() -> void:
 	g._toggle_draw_info()
 	g._toggle_settings()
 	await snap("audio-settings")
+	var layout: Dictionary = {}
+	for key in g.audio_sliders:
+		var slider: HSlider = g.audio_sliders[key]
+		layout[key] = {"x":slider.global_position.x,"y":slider.global_position.y,"width":slider.size.x,"height":slider.size.y}
+	var layout_file := FileAccess.open("res://previews/audio-layout.json",FileAccess.WRITE)
+	layout_file.store_string(JSON.stringify(layout))
+	layout_file.close()
 	g.queue_free()
+	await process_frame
 	quit()

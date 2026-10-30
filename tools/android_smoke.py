@@ -1,7 +1,7 @@
 """Smoke test the exported APK, without modifying game rules or the APK."""
 from pathlib import Path
 import subprocess, time, json, base64, io
-from PIL import Image
+from PIL import Image, ImageChops
 OUT = Path("build/android-smoke")
 OUT.mkdir(parents=True, exist_ok=True)
 PKG = "com.jck35511.meongrandy"
@@ -13,7 +13,12 @@ def tap(x, y):
     adb("shell", "input", "tap", str(x), str(y))
 adb("shell", "wm", "size", "720x1280")
 adb("shell", "wm", "density", "240")
-adb("install", "-r", "build/MeongRandy-Step29-debug.apk")
+# Keep unrelated stock messaging ANRs out of screenshots on the disposable emulator.
+packages = adb("shell","pm","list","packages").decode()
+for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
+    if ("package:" + stock_app + "\n") in packages:
+        adb("shell","pm","disable-user","--user","0",stock_app)
+adb("install", "-r", "build/MeongRandy-0.29.1-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
@@ -36,6 +41,46 @@ for _ in range(4):
 tap(360, 1040)
 time.sleep(15)
 capture("03-gameplay")
+tap(615,40) # Pause while inspecting menus.
+tap(520,1110)
+time.sleep(1)
+capture("06-recipes-before")
+adb("shell","input","swipe","320","840","320","400","350")
+time.sleep(1)
+capture("07-recipes-after")
+tap(635,110)
+tap(350,1228)
+time.sleep(0.5)
+tap(580,226) # Probability tab has enough rows to scroll.
+time.sleep(0.5)
+capture("08-draw-before")
+adb("shell","input","swipe","330","840","330","400","350")
+time.sleep(1)
+capture("09-draw-after")
+for first, second in [("06-recipes-before","07-recipes-after"),("08-draw-before","09-draw-after")]:
+    a = Image.open(OUT / (first + ".png")).convert("RGB").crop((50,350,650,900))
+    b = Image.open(OUT / (second + ".png")).convert("RGB").crop((50,350,650,900))
+    assert ImageChops.difference(a,b).getbbox(), "Touch swipe did not move " + first
+tap(635,110)
+tap(675,40)
+time.sleep(0.5)
+capture("10-audio-settings")
+layout = json.loads(Path("work/verification/game/previews/audio-layout.json").read_text())
+for channel, value in [("music",0.0),("sfx",0.6)]:
+    rect = layout[channel]
+    tap(round(rect["x"]+12+(rect["width"]-24)*value),round(rect["y"]+rect["height"]/2))
+    time.sleep(0.3)
+adb("shell","input","keyevent","KEYCODE_BACK")
+time.sleep(0.5)
+audio_path = adb("shell","run-as",PKG,"find","files","-name","audio_settings.cfg").decode().strip().splitlines()
+assert audio_path, "Volume settings were not saved"
+audio_text = adb("shell","run-as",PKG,"cat",audio_path[0]).decode()
+(OUT/"audio-settings.cfg").write_text(audio_text)
+import re
+music_level = float(re.search(r"music=([0-9.]+)",audio_text).group(1))
+sfx_level = float(re.search(r"sfx=([0-9.]+)",audio_text).group(1))
+assert music_level == 0 and 0.45 < sfx_level < 0.75, "Independent volume controls did not persist"
+
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
 adb("shell", "monkey", "-p", PKG, "1")
@@ -49,7 +94,7 @@ assert state["wave"] >= 1 and len(state["dogs"]) >= 1, "Touch did not start a pl
 adb("shell","wm","size","720x1600")
 time.sleep(3)
 capture("05-tall-screen")
-for name in ["03-gameplay","04-resumed","05-tall-screen"]:
+for name in ["03-gameplay","07-recipes-after","09-draw-after","10-audio-settings","05-tall-screen"]:
     im = Image.open(OUT / (name + ".png"))
     im.thumbnail((360,640))
     buf = io.BytesIO()

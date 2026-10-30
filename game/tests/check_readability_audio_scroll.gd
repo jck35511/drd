@@ -35,9 +35,11 @@ func run() -> void:
 	g.game_audio.set_level("sfx",0.55)
 	check(not AudioServer.is_bus_mute(AudioServer.get_bus_index("SFX")),"effects independent of music mute")
 	g.game_audio.set_level("music",0.35)
+	g.game_audio.music.play()
 	g.game_audio.set_backgrounded(true)
 	check(g.game_audio.music.stream_paused,"music pauses in background")
 	g.game_audio.set_backgrounded(false)
+	g.game_audio.music.stop()
 	g._toggle_settings()
 	check(g.audio_sliders.size() == 3,"three independent volume controls")
 	g.audio_sliders["master"].value = 42
