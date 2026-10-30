@@ -31,6 +31,15 @@ func run() -> void:
 	for key in g.audio_sliders:
 		var slider: HSlider = g.audio_sliders[key]
 		layout[key] = {"x":slider.global_position.x,"y":slider.global_position.y,"width":slider.size.x,"height":slider.size.y}
+	var controls: Dictionary = {
+		"draw_probability_tab":g.draw_info_panel.get_child(0).get_node("DrawInfoTabRow").get_child(2),
+		"draw_close":g.draw_info_panel.get_child(0).get_child(0).get_children().back(),
+		"recipe_close":g.recipe_panel.get_child(0).get_child(0).get_children().back(),
+		"settings_close":g.settings_panel.get_child(0).get_children().back()
+	}
+	for key in controls:
+		var control: Control = controls[key]
+		layout[key] = {"x":control.global_position.x,"y":control.global_position.y,"width":control.size.x,"height":control.size.y}
 	var layout_file := FileAccess.open("res://previews/audio-layout.json",FileAccess.WRITE)
 	layout_file.store_string(JSON.stringify(layout))
 	layout_file.close()

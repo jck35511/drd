@@ -9,6 +9,10 @@ def adb(*args):
     return subprocess.check_output(["adb", *args], stderr=subprocess.STDOUT)
 def capture(name):
     (OUT / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
+layout = json.loads(Path("work/verification/game/previews/audio-layout.json").read_text())
+def tap_control(name):
+    rect = layout[name]
+    tap(round(rect["x"]+rect["width"]/2), round(rect["y"]+rect["height"]/2))
 def tap(x, y):
     adb("shell", "input", "tap", str(x), str(y))
 adb("shell", "wm", "size", "720x1280")
@@ -48,10 +52,10 @@ capture("06-recipes-before")
 adb("shell","input","swipe","320","840","320","400","350")
 time.sleep(1)
 capture("07-recipes-after")
-tap(635,110)
+tap_control("recipe_close")
 tap(350,1228)
 time.sleep(0.5)
-tap(580,226) # Probability tab has enough rows to scroll.
+tap_control("draw_probability_tab") # Use actual Godot layout, not guessed coordinates.
 time.sleep(0.5)
 capture("08-draw-before")
 adb("shell","input","swipe","330","840","330","400","350")
@@ -61,14 +65,14 @@ for first, second in [("06-recipes-before","07-recipes-after"),("08-draw-before"
     a = Image.open(OUT / (first + ".png")).convert("RGB").crop((50,350,650,900))
     b = Image.open(OUT / (second + ".png")).convert("RGB").crop((50,350,650,900))
     assert ImageChops.difference(a,b).getbbox(), "Touch swipe did not move " + first
-tap(635,110)
+tap_control("draw_close")
 tap(675,40)
 time.sleep(0.5)
 capture("10-audio-settings")
 layout = json.loads(Path("work/verification/game/previews/audio-layout.json").read_text())
 for channel, value in [("music",0.0),("sfx",0.6)]:
     rect = layout[channel]
-    tap(round(rect["x"]+12+(rect["width"]-24)*value),round(rect["y"]+rect["height"]/2))
+    tap(round(rect["x"]+(1 if value == 0.0 else rect["width"]*value)),round(rect["y"]+rect["height"]/2))
     time.sleep(0.3)
 adb("shell","input","keyevent","KEYCODE_BACK")
 time.sleep(0.5)
@@ -79,7 +83,7 @@ audio_text = adb("shell","run-as",PKG,"cat",audio_path[0]).decode()
 import re
 music_level = float(re.search(r"music=([0-9.]+)",audio_text).group(1))
 sfx_level = float(re.search(r"sfx=([0-9.]+)",audio_text).group(1))
-assert music_level == 0 and 0.45 < sfx_level < 0.75, "Independent volume controls did not persist"
+assert music_level == 0 and 0.45 < sfx_level < 0.75, f"Volume persistence: music={music_level}, sfx={sfx_level}"
 
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
@@ -94,12 +98,6 @@ assert state["wave"] >= 1 and len(state["dogs"]) >= 1, "Touch did not start a pl
 adb("shell","wm","size","720x1600")
 time.sleep(3)
 capture("05-tall-screen")
-for name in ["03-gameplay","07-recipes-after","09-draw-after","10-audio-settings","05-tall-screen"]:
-    im = Image.open(OUT / (name + ".png"))
-    im.thumbnail((360,640))
-    buf = io.BytesIO()
-    im.save(buf,format="PNG")
-    print("ANDROID_PREVIEW_" + name + ":" + base64.b64encode(buf.getvalue()).decode())
 logs = adb("logcat", "-d").decode("utf-8", "replace")
 (OUT / "logcat.txt").write_text(logs)
 log_lines = logs.splitlines()
