@@ -1,4 +1,9 @@
 extends Control
+const TouchScroll = preload("res://scripts/touch_scroll.gd")
+const GameAudio = preload("res://scripts/game_audio.gd")
+var game_audio: Node
+var audio_sliders: Dictionary = {}
+var _last_end_sound: bool = false
 const SkyArt = preload("res://scripts/sky_art.gd")
 const RunStorage = preload("res://scripts/run_storage.gd")
 const SIM_STEP: float = 1.0 / 60.0
@@ -272,6 +277,9 @@ func _enemy_portrait(index: int) -> Texture2D:
 
 func _ready() -> void:
 	rng.randomize()
+	game_audio = GameAudio.new()
+	game_audio.persist_settings = persistence_enabled and DisplayServer.get_name() != "headless"
+	add_child(game_audio)
 	_load_portraits()
 	_build_ui()
 	if persistence_enabled and not OS.has_feature("editor") and not DisplayServer.get_name() == "headless":
@@ -334,13 +342,13 @@ func _build_difficulty_panel() -> void:
 	difficulty_description.text = "지옥은 숙련된 운영과 행운이 모두 필요합니다.\n운이 나쁘면 숙련자도 실패할 수 있습니다."
 	difficulty_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	difficulty_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	difficulty_description.add_theme_font_size_override("font_size", 17)
+	difficulty_description.add_theme_font_size_override("font_size", 22)
 	content.add_child(difficulty_description)
 	for tier in ["쉬움", "보통", "어려움", "지옥"]:
 		var stats: Dictionary = _difficulty_stats(tier)
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(530, 86)
-		b.add_theme_font_size_override("font_size", 21)
+		b.add_theme_font_size_override("font_size", 22)
 		b.text = "%s   |   체력 %d%% · 방어력 %d%%" % [tier, roundi(float(stats["hp"]) * 100.0), roundi(float(stats["armor"]) * 100.0)]
 		b.pressed.connect(_select_difficulty.bind(tier))
 		content.add_child(b)
@@ -358,16 +366,16 @@ func _build_ui() -> void:
 	# Step23 compact HUD: life / gold / wave+detail / speed / settings.
 	# Board and game logic remain separate; these cards never intercept input.
 	# HUD responsive text fit: more space for field enemy counter, compact wave card.
-	_add_decorative_panel(Vector2(10, 10), Vector2(118, 59), Color("#17284c"))
-	_add_decorative_panel(Vector2(134, 10), Vector2(110, 59), Color("#17284c"))
-	_add_decorative_panel(Vector2(250, 10), Vector2(258, 59), Color("#17284c"))
+	_add_decorative_panel(Vector2(10, 10), Vector2(118, 59), Color("#101e38"))
+	_add_decorative_panel(Vector2(134, 10), Vector2(110, 59), Color("#101e38"))
+	_add_decorative_panel(Vector2(250, 10), Vector2(258, 59), Color("#101e38"))
 	status_label = Label.new()
 	status_label.position = Vector2(17, 23)
 	status_label.size = Vector2(104, 34)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	status_label.clip_text = true
-	status_label.add_theme_font_size_override("font_size", 17)
+	status_label.add_theme_font_size_override("font_size", 22)
 	add_child(status_label)
 	gold_hud_label = Label.new()
 	gold_hud_label.position = Vector2(140, 23)
@@ -375,7 +383,7 @@ func _build_ui() -> void:
 	gold_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	gold_hud_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	gold_hud_label.clip_text = true
-	gold_hud_label.add_theme_font_size_override("font_size", 18)
+	gold_hud_label.add_theme_font_size_override("font_size", 22)
 	add_child(gold_hud_label)
 	wave_hud_label = Label.new()
 	wave_hud_label.position = Vector2(257, 16)
@@ -383,7 +391,7 @@ func _build_ui() -> void:
 	wave_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wave_hud_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	wave_hud_label.clip_text = true
-	wave_hud_label.add_theme_font_size_override("font_size", 15)
+	wave_hud_label.add_theme_font_size_override("font_size", 19)
 	add_child(wave_hud_label)
 	info_label = Label.new()
 	info_label.z_index = 1
@@ -392,7 +400,7 @@ func _build_ui() -> void:
 	info_label.clip_text = false
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_label.add_theme_color_override("font_color", Color("#fff5dc"))
-	info_label.add_theme_font_size_override("font_size", 17)
+	info_label.add_theme_font_size_override("font_size", 22)
 	add_child(info_label)
 	board = Control.new()
 	board.position = Vector2(0, 0)
@@ -403,12 +411,12 @@ func _build_ui() -> void:
 	board.draw.connect(_draw_board)
 	board.gui_input.connect(_board_input)
 	# Dedicated readable log area; never render instructions directly on scenery.
-	_add_decorative_panel(Vector2(14, 855), Vector2(692, 130), Color("#17284c"))
+	_add_decorative_panel(Vector2(14, 855), Vector2(692, 130), Color("#101e38"))
 	var chat_heading := Label.new()
 	chat_heading.text = "천공 성채 · 전투 안내"
 	chat_heading.position = Vector2(28, 860)
 	chat_heading.size = Vector2(650, 26)
-	chat_heading.add_theme_font_size_override("font_size", 17)
+	chat_heading.add_theme_font_size_override("font_size", 22)
 	chat_heading.add_theme_color_override("font_color", Color("#f7d9a8"))
 	add_child(chat_heading)
 	# Contextual selected-unit strip occupies the space between field and log.
@@ -423,7 +431,7 @@ func _build_ui() -> void:
 	selected_context_label.position = Vector2(28, 746)
 	selected_context_label.size = Vector2(470, 99)
 	selected_context_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	selected_context_label.add_theme_font_size_override("font_size", 17)
+	selected_context_label.add_theme_font_size_override("font_size", 22)
 	selected_context_label.add_theme_color_override("font_color", Color("#fff2d3"))
 	selected_context_label.visible = false
 	add_child(selected_context_label)
@@ -435,7 +443,7 @@ func _build_ui() -> void:
 	# Selected-unit context action. No permanent extra row in the bottom dock.
 	sell_button = _make_button("판매", Vector2(510, 747), Vector2(183, 53), _sell_selected)
 	sell_button.visible = false
-	sell_button.add_theme_font_size_override("font_size", 19)
+	sell_button.add_theme_font_size_override("font_size", 22)
 	# Restart remains exclusively inside Settings; do not alter reset behavior.
 	reset_button = null
 	settings_button = _make_button("⚙", Vector2(641, 10), Vector2(69, 59), _toggle_settings)
@@ -448,32 +456,32 @@ func _build_ui() -> void:
 	mythic_draw_button = _make_button("💠 신화 뽑기 50G", Vector2(250, 1147), Vector2(216, 52), _draw_mythic_gacha)
 	transcendent_draw_button = _make_button("✦ 초월 뽑기 50G", Vector2(478, 1147), Vector2(219, 52), _draw_transcendent_gacha)
 	for b in [draw_button, mythic_draw_button, transcendent_draw_button]:
-		b.add_theme_font_size_override("font_size", 19)
+		b.add_theme_font_size_override("font_size", 22)
 	draw_feedback = Label.new()
 	draw_feedback.position = Vector2(28, 957)
 	draw_feedback.size = Vector2(664, 24)
 	draw_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	draw_feedback.add_theme_font_size_override("font_size", 15)
-	draw_feedback.text = "맹수 각 3% · 신화 각 1% · 초월 각 0.1% · 골드 0~10배"
+	draw_feedback.add_theme_font_size_override("font_size", 19)
+	draw_feedback.text = "각 확률: 맹수 3% · 신화 1% · 초월 0.1%"
 	add_child(draw_feedback)
 	draw_info_button = _make_button("🎁 뽑기 정보  ·  보유 아이템", Vector2(22, 1205), Vector2(675, 47), _toggle_draw_info)
-	draw_info_button.add_theme_font_size_override("font_size", 16)
+	draw_info_button.add_theme_font_size_override("font_size", 22)
 	_build_draw_info_panel()
 	var help := Label.new()
-	help.text = "유닛 → 빈 칸: 이동 · 중앙: 지원/조합 · 적 처치 +5G"
+	help.text = "유닛 → 빈 칸: 이동  ·  적 처치 +5G"
 	help.position = Vector2(28, 933)
 	help.size = Vector2(664, 22)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	help.add_theme_font_size_override("font_size", 15)
+	help.add_theme_font_size_override("font_size", 19)
 	help.add_theme_color_override("font_color", Color("#fff3cd"))
 	add_child(help)
 	_build_difficulty_panel()
 	speed_button = _make_button("1x", Vector2(514, 10), Vector2(62, 59), _cycle_game_speed)
-	speed_button.add_theme_font_size_override("font_size", 20)
+	speed_button.add_theme_font_size_override("font_size", 22)
 	pause_button = _make_button("Ⅱ", Vector2(581, 10), Vector2(54, 59), _toggle_pause)
 	pause_button.add_theme_font_size_override("font_size", 24)
 	mission_button = _make_button("조합 미션", Vector2(478, 1003), Vector2(219, 74), _toggle_missions)
-	mission_button.add_theme_font_size_override("font_size", 21)
+	mission_button.add_theme_font_size_override("font_size", 22)
 	_build_mission_panel()
 
 # Economy rewards are earned only upon completing a wave / actually killing a boss.
@@ -488,6 +496,7 @@ func _boss_kill_reward(round_number: int) -> int:
 	return BOSS_REWARDS[round_number - 1]
 
 func _on_successful_fusion(result_kind: int) -> int:
+	_sound("craft")
 	# Call after consuming all materials/items, in BOTH crafting entry points.
 	# Never grant money to unit summons, debug creation, failed crafting, or repeats.
 	if result_kind < 0 or result_kind >= DOGS.size():
@@ -544,7 +553,7 @@ func _build_mission_panel() -> void:
 	layout.add_child(title)
 	mission_details = Label.new()
 	mission_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	mission_details.add_theme_font_size_override("font_size", 19)
+	mission_details.add_theme_font_size_override("font_size", 22)
 	mission_details.custom_minimum_size = Vector2(635, 385)
 	layout.add_child(mission_details)
 	var close := Button.new()
@@ -579,6 +588,7 @@ func _make_button(label_text: String, pos: Vector2, dimensions: Vector2, callbac
 	b.size = dimensions
 	b.add_theme_font_size_override("font_size", 24)
 	b.pressed.connect(callback)
+	b.pressed.connect(func() -> void: _sound("ui"))
 	add_child(b)
 	var color := Color("#245799")
 	var rim := Color("#ffe2a4")
@@ -624,7 +634,11 @@ func _panel_box(fill: Color, outline: Color = Color("#f5bf65"), border_size: int
 func _apply_forest_theme() -> void:
 	ui_theme = Theme.new()
 	if ResourceLoader.exists("res://assets/kr.ttf"):
-		ui_theme.default_font = load("res://assets/kr.ttf")
+		var readable_font := FontVariation.new()
+		readable_font.base_font = load("res://assets/kr.ttf")
+		readable_font.variation_opentype = {"wght":650.0}
+		ui_theme.default_font = readable_font
+	ui_theme.default_font_size = 24
 	ui_theme.set_stylebox("normal", "Button", _panel_box(Color("#245799"), Color("#e9b86a"), 4, 16))
 	ui_theme.set_stylebox("hover", "Button", _panel_box(Color("#427ed0"), Color("#ffe09a"), 4, 16))
 	ui_theme.set_stylebox("pressed", "Button", _panel_box(Color("#213e6d"), Color("#f9db8d"), 4, 16))
@@ -633,14 +647,14 @@ func _apply_forest_theme() -> void:
 	ui_theme.set_color("font_color", "Button", Color("#fff9df"))
 	ui_theme.set_color("font_hover_color", "Button", Color("#ffffff"))
 	ui_theme.set_color("font_pressed_color", "Button", Color("#fff8dc"))
-	ui_theme.set_color("font_disabled_color", "Button", Color("#d5c7b4"))
+	ui_theme.set_color("font_disabled_color", "Button", Color("#e0e6f0"))
 	ui_theme.set_stylebox("panel", "PanelContainer", _panel_box(Color("#edf1fc"), Color("#7a90bb"), 6, 20))
-	ui_theme.set_color("font_color", "Label", Color("#fff1d1"))
+	ui_theme.set_color("font_color", "Label", Color("#ffffff"))
 	theme = ui_theme
 
 func _apply_popup_text_theme(target: Control) -> void:
 	var local_theme := Theme.new()
-	local_theme.set_color("font_color", "Label", Color("#17284c"))
+	local_theme.set_color("font_color", "Label", Color("#101e38"))
 	target.theme = local_theme
 
 func _add_decorative_panel(pos: Vector2, dimensions: Vector2, fill: Color) -> void:
@@ -653,8 +667,8 @@ func _add_decorative_panel(pos: Vector2, dimensions: Vector2, fill: Color) -> vo
 
 func _build_settings_panel() -> void:
 	settings_panel = PanelContainer.new()
-	settings_panel.position = Vector2(95, 304)
-	settings_panel.size = Vector2(530, 442)
+	settings_panel.position = Vector2(60, 150)
+	settings_panel.size = Vector2(600, 860)
 	settings_panel.z_index = 210
 	settings_panel.visible = false
 	settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -667,12 +681,12 @@ func _build_settings_panel() -> void:
 	header.text = "⚙  게임 설정"
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	header.add_theme_font_size_override("font_size", 32)
-	header.add_theme_color_override("font_color", Color("#17284c"))
+	header.add_theme_color_override("font_color", Color("#101e38"))
 	content.add_child(header)
 	var description := Label.new()
-	description.text = "설정을 여는 동안 전투가 일시정지됩니다."
+	description.text = "설정 중에는 전투가 일시정지됩니다."
 	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description.add_theme_font_size_override("font_size", 19)
+	description.add_theme_font_size_override("font_size", 22)
 	description.add_theme_color_override("font_color", Color("#344f7b"))
 	content.add_child(description)
 	var speed_note := Label.new()
@@ -681,6 +695,7 @@ func _build_settings_panel() -> void:
 	speed_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	speed_note.add_theme_color_override("font_color", Color("#344f7b"))
 	content.add_child(speed_note)
+	_add_volume_controls(content)
 	var restart := Button.new()
 	restart.text = "↻  다시하기 · 난이도 재선택"
 	restart.custom_minimum_size = Vector2(480, 80)
@@ -703,6 +718,7 @@ func _build_settings_panel() -> void:
 func _toggle_settings() -> void:
 	if settings_panel == null:
 		return
+	if settings_panel.visible and game_audio != null: game_audio.save_settings()
 	settings_panel.visible = not settings_panel.visible
 	paused = settings_panel.visible
 	if paused and persistence_enabled:
@@ -801,6 +817,7 @@ func _summon() -> void:
 	if free.is_empty():
 		return
 	gold -= COST
+	_sound("summon")
 	var kind: int = [0, 1, 2, 10, 11, 12, 13, 14, 15, 16][rng.randi_range(0, 9)]
 	var attack_cells: Array[int] = []
 	for candidate in free:
@@ -972,6 +989,7 @@ func _boss_stats(boss_number: int) -> Dictionary:
 	}
 
 func _start_boss_round() -> void:
+	_sound("boss")
 	if not boss_pending or boss_running or game_over or victory or not difficulty_confirmed:
 		return
 	boss_round = int(wave / BOSS_INTERVAL)
@@ -1015,6 +1033,7 @@ func _start_wave() -> void:
 	if wave >= MAX_REGULAR_WAVE:
 		return
 	wave += 1
+	_sound("wave")
 	wave_enemy_type = _pick_regular_enemy_type()
 	wave_time_left = REGULAR_WAVE_DURATION
 	spawn_left = REGULAR_WAVE_ENEMY_COUNT
@@ -1292,6 +1311,7 @@ func _attack_transcendent(dog_index: int, target: int, auras: Dictionary) -> voi
 				_apply_status(i, "stun", float(TRANSCENDENT_POWER["area_stun"]))
 
 func _attack_with_skills(dog_index: int, target: int, auras: Dictionary) -> void:
+	if dog_index >= 0 and dog_index < dogs.size(): _sound("magic" if _unit_is_magic(int(dogs[dog_index]["kind"])) else "attack")
 	var kind: int = int(dogs[dog_index]["kind"])
 	_emit_attack_visual(dog_index, target)
 	var tier: String = GRADES[kind]
@@ -1419,6 +1439,7 @@ func _simulation_step(delta: float) -> void:
 	_refresh()
 
 func _restart() -> void:
+	_last_end_sound = false
 	paused = false
 	simulation_accumulator = 0.0
 	combat_fx.clear()
@@ -1471,6 +1492,9 @@ func _restart() -> void:
 	_refresh()
 
 func _refresh() -> void:
+	if (game_over or victory) and not _last_end_sound:
+		_last_end_sound = true
+		_sound("victory" if victory else "defeat")
 	if _in_simulation:
 		return
 	if pause_button != null:
@@ -1719,7 +1743,7 @@ func _build_recipe_panel() -> void:
 	var header := HBoxContainer.new()
 	outer.add_child(header)
 	var title := Label.new()
-	title.text = "조합 · 39종"
+	title.text = "조합 도감"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 22)
 	header.add_child(title)
@@ -1743,8 +1767,8 @@ func _build_recipe_panel() -> void:
 	for pair in [["전체", "전체 39종"], ["중형견", "중형견 13종"], ["대형견", "대형견 13종"], ["맹수", "맹수 6종"], ["신화", "신화 4종"], ["초월", "초월 3종"]]:
 		var filter_button := Button.new()
 		filter_button.text = str(pair[1])
-		filter_button.custom_minimum_size = Vector2(0, 43)
-		filter_button.add_theme_font_size_override("font_size", 15)
+		filter_button.custom_minimum_size = Vector2(0, 52)
+		filter_button.add_theme_font_size_override("font_size", 22)
 		filter_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		filter_button.size_flags_stretch_ratio = 1.0
 		filter_button.pressed.connect(_set_recipe_filter.bind(str(pair[0])))
@@ -1759,15 +1783,15 @@ func _build_recipe_panel() -> void:
 	recipe_feedback.text = "재료가 충분하면 제작 버튼을 누르세요."
 	recipe_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	recipe_feedback.custom_minimum_size = Vector2(0, 32)
-	recipe_feedback.add_theme_font_size_override("font_size", 18)
+	recipe_feedback.add_theme_font_size_override("font_size", 22)
 	outer.add_child(recipe_feedback)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(610, 600)
+	var scroll := TouchScroll.new()
+	scroll.custom_minimum_size = Vector2(0, 0)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer.add_child(scroll)
 	recipe_list = VBoxContainer.new()
 	recipe_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	recipe_list.add_theme_constant_override("separation", 8)
+	recipe_list.add_theme_constant_override("separation", 18)
 	scroll.add_child(recipe_list)
 
 func _toggle_recipes() -> void:
@@ -1781,6 +1805,7 @@ func _toggle_recipes() -> void:
 func _refresh_recipes() -> void:
 	if recipe_list == null:
 		return
+	if recipe_list.get_parent().is_interacting(): return
 	var owned: Dictionary = {}
 	for dog in dogs:
 		var kind: int = int(dog["kind"])
@@ -1820,17 +1845,17 @@ func _refresh_recipes() -> void:
 			if item_count < 1:
 				ready = false
 		var entry := VBoxContainer.new()
-		entry.add_theme_constant_override("separation", 3)
+		entry.add_theme_constant_override("separation", 8)
 		recipe_list.add_child(entry)
 		var name_label := Label.new()
 		name_label.text = "%s  [%s]" % [DOGS[result_kind], GRADES[result_kind]]
-		name_label.add_theme_font_size_override("font_size", 21)
+		name_label.add_theme_font_size_override("font_size", 22)
 		entry.add_child(name_label)
 		var material_label := Label.new()
 		material_label.text = "재료: " + " + ".join(PackedStringArray(parts))
 		material_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		material_label.custom_minimum_size = Vector2(450, 38)
-		material_label.add_theme_font_size_override("font_size", 17)
+		material_label.custom_minimum_size = Vector2(0, 52)
+		material_label.add_theme_font_size_override("font_size", 22)
 		entry.add_child(material_label)
 		var craft_button := Button.new()
 		craft_button.text = "제작하기" if ready and not game_over else "재료 부족" if not ready else "게임 종료"
@@ -1844,6 +1869,7 @@ func _refresh_recipes() -> void:
 # Step9: presentation-only draw inventory, recent results and exact odds.
 # Stored in memory for the current run; no changes to Step8 reward distribution.
 func _record_draw(reward: Dictionary, category: String = "맹수") -> void:
+	_sound("craft" if reward.get("type", "") == "item" else "coin")
 	var entry: Dictionary = reward.duplicate(true)
 	entry["category"] = category
 	if reward.get("type", "") == "item":
@@ -1889,7 +1915,7 @@ func _build_draw_info_panel() -> void:
 	for category in ["맹수", "신화", "초월"]:
 		var category_button := Button.new()
 		category_button.text = category + " 뽑기"
-		category_button.custom_minimum_size = Vector2(0, 43)
+		category_button.custom_minimum_size = Vector2(0, 52)
 		category_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		category_button.size_flags_stretch_ratio = 1.0
 		category_button.pressed.connect(_set_draw_info_category.bind(category))
@@ -1902,7 +1928,7 @@ func _build_draw_info_panel() -> void:
 	for tab_name in ["보유 아이템", "최근 결과", "확률표"]:
 		var tab := Button.new()
 		tab.text = tab_name
-		tab.custom_minimum_size = Vector2(0, 45)
+		tab.custom_minimum_size = Vector2(0, 52)
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab.size_flags_stretch_ratio = 1.0
 		tab.pressed.connect(_set_draw_info_tab.bind(tab_name))
@@ -1913,12 +1939,12 @@ func _build_draw_info_panel() -> void:
 	draw_content_gap.custom_minimum_size = Vector2(0, 14)
 	draw_content_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	outer.add_child(draw_content_gap)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(610, 620)
+	var scroll := TouchScroll.new()
+	scroll.custom_minimum_size = Vector2(0, 0)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer.add_child(scroll)
 	draw_info_list = VBoxContainer.new()
-	draw_info_list.custom_minimum_size = Vector2(570, 0)
+	draw_info_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	draw_info_list.add_theme_constant_override("separation", 13)
 	scroll.add_child(draw_info_list)
 
@@ -1948,13 +1974,14 @@ func _draw_info_line(message: String, size: int = 19) -> void:
 	var label := Label.new()
 	label.text = message
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(530, 37)
-	label.add_theme_font_size_override("font_size", size)
+	label.custom_minimum_size = Vector2(0, 46)
+	label.add_theme_font_size_override("font_size", maxi(24,size))
 	draw_info_list.add_child(label)
 
 func _refresh_draw_info() -> void:
 	if draw_info_list == null:
 		return
+	if draw_info_list.get_parent().is_interacting(): return
 	var signature: String = draw_info_category + ":" + draw_info_tab + ":" + str(draw_history.size()) + ":" + str(game_over)
 	for item_id in DRAW_ITEM_IDS + MYTHIC_DRAW_ITEM_IDS + TRANSCENDENT_DRAW_ITEM_IDS:
 		signature += ":" + str(int(beast_items.get(item_id, 0)))
@@ -2021,10 +2048,15 @@ func _toggle_pause() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if game_audio != null:
+			game_audio.set_backgrounded(true)
+			game_audio.save_settings()
 		if difficulty_confirmed and not game_over and not victory:
 			paused = true
 			if persistence_enabled:
 				RunStorage.save(self)
+	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		if game_audio != null: game_audio.set_backgrounded(false)
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		_toggle_settings()
 
@@ -2112,8 +2144,8 @@ func _open_unit_gallery() -> void:
 	close.custom_minimum_size = Vector2(100, 52)
 	close.pressed.connect(func() -> void: unit_gallery.visible = false)
 	header.add_child(close)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(620, 950)
+	var scroll := TouchScroll.new()
+	scroll.custom_minimum_size = Vector2(0, 0)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer.add_child(scroll)
 	var grid := GridContainer.new()
@@ -2134,6 +2166,51 @@ func _open_unit_gallery() -> void:
 		card.add_child(portrait)
 		var label := Label.new()
 		label.text = "%s · %s\n공격 %.0f · 사거리 %.0f\n공격 주기 %.2f초" % [DOGS[kind], GRADES[kind], ATTACK[kind], RANGE[kind], COOLDOWN[kind]]
-		label.add_theme_font_size_override("font_size", 17)
+		label.add_theme_font_size_override("font_size", 22)
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		card.add_child(label)
+
+func _sound(name: String) -> void:
+	if game_audio != null: game_audio.play_effect(name)
+
+func _add_volume_controls(content: VBoxContainer) -> void:
+	for pair in [["master","전체 음량"],["music","배경음"],["sfx","효과음"]]:
+		var key: String = pair[0]
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation",8)
+		content.add_child(row)
+		var label := Label.new()
+		label.text = "%s  %d%%" % [pair[1],roundi(float(game_audio.levels[key])*100.0)]
+		label.add_theme_font_size_override("font_size",26)
+		row.add_child(label)
+		var slider := HSlider.new()
+		slider.name = key + "_volume"
+		slider.min_value = 0
+		slider.max_value = 100
+		slider.step = 1
+		slider.value = float(game_audio.levels[key])*100.0
+		slider.custom_minimum_size = Vector2(510,56)
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var track := StyleBoxFlat.new()
+		track.bg_color = Color("#c0cce1")
+		track.content_margin_top = 7
+		track.content_margin_bottom = 7
+		slider.add_theme_stylebox_override("slider",track)
+		var fill := track.duplicate() as StyleBoxFlat
+		fill.bg_color = Color("#245799")
+		slider.add_theme_stylebox_override("grabber_area",fill)
+		slider.add_theme_stylebox_override("grabber_area_highlight",fill)
+		slider.value_changed.connect(func(value: float) -> void:
+			game_audio.set_level(key,value/100.0)
+			label.text = "%s  %d%%" % [pair[1],roundi(value)]
+		)
+		slider.drag_ended.connect(func(_changed: bool) -> void:
+			game_audio.save_settings()
+			_sound("ui")
+		)
+		row.add_child(slider)
+		audio_sliders[key] = slider
+	var note := Label.new()
+	note.text = "0%로 내리면 음소거 · 설정은 자동 저장됩니다."
+	note.add_theme_font_size_override("font_size",22)
+	content.add_child(note)

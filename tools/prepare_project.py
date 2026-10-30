@@ -24,3 +24,7 @@ if not font.exists():
 license_path=game/"assets/FONT-OFL.txt"
 if not license_path.exists():
     urllib.request.urlretrieve("https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/OFL.txt",license_path)
+
+# Generate original offline music and effects for source and APK.
+import subprocess, sys
+subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "generate_audio.py")], check=True)
