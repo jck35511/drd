@@ -22,7 +22,9 @@ static func restore(game: Control) -> bool:
 	if not FileAccess.file_exists(PATH): return false
 	var file := FileAccess.open(PATH, FileAccess.READ)
 	if file == null: return false
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var parser := JSON.new()
+	if parser.parse(file.get_as_text()) != OK: return false
+	var parsed: Variant = parser.data
 	if not parsed is Dictionary: return false
 	var data: Dictionary = parsed
 	if int(data.get("version", -1)) != VERSION: return false

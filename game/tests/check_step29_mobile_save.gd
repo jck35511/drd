@@ -26,7 +26,7 @@ func run() -> void:
 	g.first_transcendent_claimed = {48:true}
 	g.rng.seed = 123456
 	g.dogs.append({"kind":42,"cell":0,"cooldown":0.5})
-	g.enemies.append({"hp":250.0,"max_hp":500.0,"progress":1.2,"armor":25.0,"magic_res":0.2,"move_speed":0.1,"effects":{"burn":{"time":2.0,"power":10.0}}})
+	g.enemies.append({"hp":250.0,"max_hp":500.0,"progress":1.2,"armor":25.0,"magic_res":0.2,"move_speed":0.1,"effects":{"burn":{"time":2.0,"dps":10.0}}})
 	touch(g,0)
 	verify(g.selected == 0,"touch selects unit")
 	touch(g,5)
@@ -38,7 +38,7 @@ func run() -> void:
 	verify(Storage.restore(restored),"restore succeeds")
 	verify(restored.gold == 357 and restored.wave == 23 and restored.difficulty == "지옥","difficulty and progress restored")
 	verify(restored.dogs.size() == 1 and int(restored.dogs[0]["kind"]) == 42 and int(restored.dogs[0]["cell"]) == 5 and is_equal_approx(float(restored.dogs[0]["cooldown"]),0.5),"unit identity, position and cooldown restored")
-	verify(restored.enemies.size() == 1 and is_equal_approx(float(restored.enemies[0]["hp"]),250.0) and is_equal_approx(float(restored.enemies[0]["progress"]),1.2) and is_equal_approx(float(restored.enemies[0]["effects"]["burn"]["time"]),2.0) and is_equal_approx(float(restored.enemies[0]["effects"]["burn"]["power"]),10.0),"enemy HP, progress and active damage effect restored")
+	verify(restored.enemies.size() == 1 and is_equal_approx(float(restored.enemies[0]["hp"]),250.0) and is_equal_approx(float(restored.enemies[0]["progress"]),1.2) and is_equal_approx(float(restored.enemies[0]["effects"]["burn"]["time"]),2.0) and is_equal_approx(float(restored.enemies[0]["effects"]["burn"]["dps"]),10.0),"enemy HP, progress and active damage effect restored")
 	verify(restored.beast_items.get(48) == 1 and restored.first_transcendent_claimed.has(48),"integer item keys survive JSON")
 	verify(restored.rng.randi() == expected_rng,"random sequence survives restart")
 	verify(restored.paused,"restored game waits for explicit resume")
