@@ -44,6 +44,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		var local: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
+		if event.pressed and get_v_scroll_bar().visible and local.x >= size.x-get_v_scroll_bar().size.x:
+			suppress_emulated_mouse = false
+			return
 		if event.pressed and not Rect2(Vector2.ZERO,size).has_point(local):
 			suppress_emulated_mouse = false
 		if event.pressed and finger < 0 and Rect2(Vector2.ZERO,size).has_point(local):

@@ -107,6 +107,11 @@ jobs:
         with:
           name: MeongRandy-Step29-Android-and-source
           path: build/
+      - name: Upload APK separately for phone installation
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeongRandy-0.29.1-APK
+          path: build/MeongRandy-0.29.1-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"
