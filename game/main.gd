@@ -387,7 +387,7 @@ func _build_ui() -> void:
 	add_child(wave_hud_label)
 	info_label = Label.new()
 	info_label.z_index = 1
-	info_label.position = Vector2(28, 889)
+	info_label.position = Vector2(28, 885)
 	info_label.size = Vector2(664, 44)
 	info_label.clip_text = false
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
