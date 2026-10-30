@@ -2037,6 +2037,7 @@ func _process(delta: float) -> void:
 			simulation_accumulator = maxf(0.0, simulation_accumulator - SIM_STEP)
 			steps += 1
 			if game_over or victory:
+				if persistence_enabled: RunStorage.clear_save()
 				simulation_accumulator = 0.0
 				break
 		_in_simulation = false

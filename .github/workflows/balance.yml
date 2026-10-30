@@ -1,0 +1,34 @@
+name: Sample real combat across four difficulties
+on:
+  workflow_dispatch:
+  push:
+    branches: ["codex/sky-castle-step29"]
+    paths:
+      - "game/tests/run_balance.gd"
+      - ".github/workflows/balance.yml"
+jobs:
+  sample:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        difficulty: ["쉬움", "보통", "어려움", "지옥"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare and import
+        run: |
+          python3 tools/prepare_project.py
+          mkdir -p work
+          curl --fail --location --retry 3 https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip -o work/godot.zip
+          unzip -q work/godot.zip -d work
+          mv work/Godot_v4.5.1-stable_linux.x86_64 work/godot
+          chmod +x work/godot
+          work/godot --headless --editor --path game --import
+      - name: Run legal-action samples
+        run: work/godot --headless --path game --script res://tests/run_balance.gd -- --difficulty="${{ matrix.difficulty }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: balance-${{ matrix.difficulty }}
+          path: game/reports/

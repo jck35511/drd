@@ -4,7 +4,10 @@ const VERSION: int = 1
 const FIELDS: Array[String] = ["gold", "wave", "boss_round", "boss_pending", "boss_running", "wave_running", "auto_advance_pending", "wave_time_left", "spawn_left", "spawn_clock", "wave_enemy_type", "difficulty", "difficulty_confirmed", "dogs", "enemies", "beast_items", "first_beast_claimed", "first_mythic_claimed", "first_transcendent_claimed", "last_completed_wave", "game_speed", "game_over", "victory", "simulation_accumulator"]
 
 static func save(game: Control) -> bool:
-	if not game.difficulty_confirmed or game.game_over or game.victory:
+	if game.game_over or game.victory:
+		clear_save()
+		return false
+	if not game.difficulty_confirmed:
 		return false
 	var data: Dictionary = {"version": VERSION, "rng_state": str(game.rng.state)}
 	for field in FIELDS:
@@ -24,6 +27,12 @@ static func restore(game: Control) -> bool:
 	var data: Dictionary = parsed
 	if int(data.get("version", -1)) != VERSION: return false
 	if not data.get("difficulty", "") in game.DIFFICULTY_STATS: return false
+	if int(data.get("wave", -1)) < 0 or int(data.get("wave", 81)) > 80: return false
+	if int(data.get("boss_round", -1)) < 0 or int(data.get("boss_round", 9)) > 8: return false
+	if int(data.get("gold", -1)) < 0: return false
+	if not int(data.get("game_speed", 0)) in [1, 2, 3]: return false
+	if not data.get("beast_items", {}) is Dictionary: return false
+	if not data.get("first_transcendent_claimed", {}) is Dictionary: return false
 	var saved_dogs: Variant = data.get("dogs", [])
 	var saved_enemies: Variant = data.get("enemies", [])
 	if not saved_dogs is Array or not saved_enemies is Array: return false
@@ -34,6 +43,7 @@ static func restore(game: Control) -> bool:
 		var cell: int = int(dog.get("cell", -1))
 		var kind: int = int(dog.get("kind", -1))
 		if cell < 0 or cell >= 36 or kind < 0 or kind >= 49 or used.has(cell): return false
+		if not dog.has("cooldown") or not (dog["cooldown"] is float or dog["cooldown"] is int): return false
 		used[cell] = true
 	for enemy in saved_enemies:
 		if not enemy is Dictionary: return false
