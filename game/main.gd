@@ -387,11 +387,12 @@ func _build_ui() -> void:
 	add_child(gold_hud_label)
 	wave_hud_label = Label.new()
 	wave_hud_label.position = Vector2(257, 16)
-	wave_hud_label.size = Vector2(244, 46)
+	wave_hud_label.size = Vector2(244, 49)
 	wave_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wave_hud_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	wave_hud_label.clip_text = true
 	wave_hud_label.add_theme_font_size_override("font_size", 19)
+	wave_hud_label.add_theme_constant_override("line_spacing", -4)
 	add_child(wave_hud_label)
 	info_label = Label.new()
 	info_label.z_index = 1
@@ -1526,7 +1527,7 @@ func _refresh() -> void:
 		speed_button.disabled = not difficulty_confirmed or game_over or victory
 	if status_label == null:
 		return
-	status_label.text = "적 %d/%d" % [enemies.size(), _field_limit()]
+	status_label.text = "%d/%d" % [enemies.size(), _field_limit()]
 	gold_hud_label.text = "🪙 %dG" % gold
 	if wave_hud_label != null:
 		wave_hud_label.text = "WAVE %d/88\n%s · %s" % [wave + boss_round, "보스 웨이브" if boss_running or boss_pending else "일반 웨이브", difficulty]

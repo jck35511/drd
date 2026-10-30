@@ -23,7 +23,7 @@ func _ready() -> void:
 			music.stream.loop_begin = 0
 			music.stream.loop_end = int(music.stream.get_length()*music.stream.mix_rate)
 	add_child(music)
-	if music.stream != null: music.play()
+	if music.stream != null and DisplayServer.get_name() != "headless": music.play()
 	for i in range(8):
 		var player := AudioStreamPlayer.new()
 		player.bus = "SFX"
@@ -55,6 +55,7 @@ func load_settings() -> void:
 		var value: Variant = config.get_value("audio",channel,levels[channel])
 		if value is float or value is int: levels[channel] = clampf(float(value),0.0,1.0)
 func play_effect(name: String) -> void:
+	if DisplayServer.get_name() == "headless": return
 	if not sounds.has(name) or voices.is_empty(): return
 	if float(levels["master"]) <= 0.0 or float(levels["sfx"]) <= 0.0: return
 	var now: int = Time.get_ticks_msec()
@@ -76,3 +77,12 @@ func set_backgrounded(value: bool) -> void:
 	if music != null: music.stream_paused = value
 	if value:
 		for voice in voices: voice.stop()
+
+func _exit_tree() -> void:
+	if music != null:
+		music.stop()
+		music.stream = null
+	for voice in voices:
+		voice.stop()
+		voice.stream = null
+	sounds.clear()

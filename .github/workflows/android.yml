@@ -32,6 +32,9 @@ jobs:
         run: godot --headless --editor --path game --import
       - name: Run regression suite
         run: python3 tools/run_tests.py
+      - name: Diagnose resources on failure
+        if: failure()
+        run: godot --headless --verbose --path game --script res://tests/check_skills.gd
       - name: Capture actual gameplay and character gallery
         run: xvfb-run -a godot --path game --rendering-method gl_compatibility --script res://tests/capture_preview.gd
       - name: Capture readable lists and audio controls
