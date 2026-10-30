@@ -57,13 +57,18 @@ for name in ["03-gameplay","04-resumed","05-tall-screen"]:
     print("ANDROID_PREVIEW_" + name + ":" + base64.b64encode(buf.getvalue()).decode())
 logs = adb("logcat", "-d").decode("utf-8", "replace")
 (OUT / "logcat.txt").write_text(logs)
-for line in logs.splitlines():
+log_lines = logs.splitlines()
+for i, line in enumerate(log_lines):
     if "godot" in line.lower() and any(word in line for word in ["ERROR", "Error", "OpenGL", "Renderer", "Vulkan"]):
-        print("ENGINE_DIAGNOSTIC:" + line)
+        print("ENGINE_DIAGNOSTIC:" + "\\n".join(log_lines[max(0,i-1):i+5]))
 (OUT / "memory.txt").write_bytes(adb("shell", "dumpsys", "meminfo", PKG))
 (OUT / "frames.txt").write_bytes(adb("shell", "dumpsys", "gfxinfo", PKG))
 assert adb("shell", "pidof", PKG).strip(), "App exited during interaction"
-failures = [line for line in logs.splitlines() if "FATAL EXCEPTION" in line or "SCRIPT ERROR:" in line or "Parse Error:" in line]
+failures = [line for line in logs.splitlines() if "FATAL EXCEPTION" in line or "SCRIPT ERROR:" in line or "Parse Error:" in line or ("godot" in line.lower() and "ERROR:" in line)]
+for name in ["03-gameplay","04-resumed","05-tall-screen"]:
+    pixels = Image.open(OUT / (name + ".png")).convert("RGB").resize((72,128))
+    if len(set(pixels.getdata())) < 100:
+        failures.append("Blank or nearly blank rendered image: " + name)
 (OUT / "summary.json").write_text(json.dumps({"installed":True,"process_alive":True,"runtime_errors":failures,"physical_device_tested":False},ensure_ascii=False,indent=2))
 assert not failures, "\n".join(failures)
 print("ANDROID_SMOKE_PASS")
