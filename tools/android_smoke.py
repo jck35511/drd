@@ -10,6 +10,7 @@ def adb(*args):
 def capture(name):
     (OUT / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
 layout = json.loads(Path("work/verification/game/previews/audio-layout.json").read_text())
+print("CONTROL_LAYOUT:" + json.dumps(layout))
 def tap_control(name):
     rect = layout[name]
     tap(round(rect["x"]+rect["width"]/2), round(rect["y"]+rect["height"]/2))
@@ -74,12 +75,14 @@ for channel, value in [("music",0.0),("sfx",0.6)]:
     rect = layout[channel]
     tap(round(rect["x"]+(1 if value == 0.0 else rect["width"]*value)),round(rect["y"]+rect["height"]/2))
     time.sleep(0.3)
+capture("11-audio-adjusted")
 adb("shell","input","keyevent","KEYCODE_BACK")
 time.sleep(0.5)
 audio_path = adb("shell","run-as",PKG,"find","files","-name","audio_settings.cfg").decode().strip().splitlines()
 assert audio_path, "Volume settings were not saved"
 audio_text = adb("shell","run-as",PKG,"cat",audio_path[0]).decode()
 (OUT/"audio-settings.cfg").write_text(audio_text)
+print("SAVED_AUDIO:" + audio_text.replace("\n","; "))
 import re
 music_level = float(re.search(r"music=([0-9.]+)",audio_text).group(1))
 sfx_level = float(re.search(r"sfx=([0-9.]+)",audio_text).group(1))

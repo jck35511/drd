@@ -1,4 +1,5 @@
 extends Control
+const TouchVolume = preload("res://scripts/touch_volume.gd")
 const TouchScroll = preload("res://scripts/touch_scroll.gd")
 const GameAudio = preload("res://scripts/game_audio.gd")
 var game_audio: Node
@@ -2193,7 +2194,7 @@ func _add_volume_controls(content: VBoxContainer) -> void:
 		label.text = "%s  %d%%" % [pair[1],roundi(float(game_audio.levels[key])*100.0)]
 		label.add_theme_font_size_override("font_size",26)
 		row.add_child(label)
-		var slider := HSlider.new()
+		var slider := TouchVolume.new()
 		slider.name = key + "_volume"
 		slider.min_value = 0
 		slider.max_value = 100

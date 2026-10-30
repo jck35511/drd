@@ -41,9 +41,20 @@ func run() -> void:
 	g.game_audio.set_backgrounded(false)
 	g.game_audio.music.stop()
 	g._toggle_settings()
+	await process_frame
+	await process_frame
 	check(g.audio_sliders.size() == 3,"three independent volume controls")
 	g.audio_sliders["master"].value = 42
 	check(is_equal_approx(float(g.game_audio.levels["master"]),0.42),"slider changes actual volume")
+	var volume: Control = g.audio_sliders["music"]
+	var volume_point: Vector2 = volume.global_position + Vector2(1,volume.size.y/2)
+	touch(volume,volume_point,true)
+	touch(volume,volume_point,false)
+	check(is_equal_approx(float(g.game_audio.levels["music"]),0.0),"touching left edge mutes music")
+	volume_point = volume.global_position + Vector2(volume.size.x*0.6,volume.size.y/2)
+	touch(volume,volume_point,true)
+	touch(volume,volume_point,false)
+	check(float(g.game_audio.levels["music"]) > 0.5,"touching track changes volume")
 	g._toggle_settings()
 	g._toggle_recipes()
 	await process_frame

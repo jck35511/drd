@@ -39,9 +39,13 @@ func _input(event: InputEvent) -> void:
 		finger = -1
 		velocity = 0.0
 		return
-	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION and suppress_emulated_mouse:
-		get_viewport().set_input_as_handled()
-		return
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
+		var mouse_local: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
+		var over_content: bool = Rect2(Vector2.ZERO,size).has_point(mouse_local)
+		if get_v_scroll_bar().visible and mouse_local.x >= size.x-get_v_scroll_bar().size.x: over_content = false
+		if over_content or finger >= 0:
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventScreenTouch:
 		var local: Vector2 = get_global_transform_with_canvas().affine_inverse() * event.position
 		if event.pressed and get_v_scroll_bar().visible and local.x >= size.x-get_v_scroll_bar().size.x:
