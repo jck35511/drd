@@ -36,7 +36,7 @@ jobs:
         if: failure()
         run: godot --headless --verbose --path game --script res://tests/check_skills.gd
       - name: Capture actual gameplay and character gallery
-        run: xvfb-run -a godot --path game --rendering-method gl_compatibility --script res://tests/capture_preview.gd
+        run: xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_preview.gd
       - name: Capture readable lists and audio controls
         run: xvfb-run -a godot --path game --rendering-method gl_compatibility --script res://tests/capture_accessibility.gd
       - name: Upload verification results

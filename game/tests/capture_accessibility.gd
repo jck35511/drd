@@ -16,6 +16,7 @@ func run() -> void:
 	g.persistence_enabled = false
 	root.add_child(g)
 	g.set_process(false)
+	g.game_audio.music.stop()
 	g._select_difficulty("보통")
 	g._toggle_recipes()
 	await snap("readable-recipes")

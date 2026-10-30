@@ -8,6 +8,7 @@ func capture() -> void:
 	game.persistence_enabled=false
 	root.add_child(game)
 	game.set_process(false)
+	game.game_audio.music.stop()
 	game._select_difficulty("보통")
 	game.wave=24
 	game.boss_round=2

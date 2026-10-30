@@ -276,6 +276,7 @@ func _enemy_portrait(index: int) -> Texture2D:
 	return _enemy_portraits[index] if index >= 0 and index < _enemy_portraits.size() else null
 
 func _ready() -> void:
+	get_tree().quit_on_go_back = false
 	rng.randomize()
 	game_audio = GameAudio.new()
 	game_audio.persist_settings = persistence_enabled and DisplayServer.get_name() != "headless"
@@ -397,11 +398,11 @@ func _build_ui() -> void:
 	info_label = Label.new()
 	info_label.z_index = 1
 	info_label.position = Vector2(28, 885)
-	info_label.size = Vector2(664, 44)
+	info_label.size = Vector2(664, 64)
 	info_label.clip_text = false
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_label.add_theme_color_override("font_color", Color("#fff5dc"))
-	info_label.add_theme_font_size_override("font_size", 22)
+	info_label.add_theme_font_size_override("font_size", 24)
 	add_child(info_label)
 	board = Control.new()
 	board.position = Vector2(0, 0)
@@ -430,7 +431,7 @@ func _build_ui() -> void:
 	add_child(selected_context_panel)
 	selected_context_label = Label.new()
 	selected_context_label.position = Vector2(28, 746)
-	selected_context_label.size = Vector2(470, 99)
+	selected_context_label.size = Vector2(664, 99)
 	selected_context_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	selected_context_label.add_theme_font_size_override("font_size", 22)
 	selected_context_label.add_theme_color_override("font_color", Color("#fff2d3"))
@@ -469,6 +470,7 @@ func _build_ui() -> void:
 	draw_info_button.add_theme_font_size_override("font_size", 22)
 	_build_draw_info_panel()
 	var help := Label.new()
+	help.visible = false
 	help.text = "유닛 → 빈 칸: 이동  ·  적 처치 +5G"
 	help.position = Vector2(28, 933)
 	help.size = Vector2(664, 22)
@@ -637,9 +639,12 @@ func _apply_forest_theme() -> void:
 	if ResourceLoader.exists("res://assets/kr.ttf"):
 		var readable_font := FontVariation.new()
 		readable_font.base_font = load("res://assets/kr.ttf")
-		readable_font.variation_opentype = {"wght":650.0}
+		readable_font.variation_opentype = {0x77676874:650.0}
+		readable_font.variation_embolden = 0.8
 		ui_theme.default_font = readable_font
 	ui_theme.default_font_size = 24
+	ui_theme.set_font("font","Label",ui_theme.default_font)
+	ui_theme.set_font("font","Button",ui_theme.default_font)
 	ui_theme.set_stylebox("normal", "Button", _panel_box(Color("#245799"), Color("#e9b86a"), 4, 16))
 	ui_theme.set_stylebox("hover", "Button", _panel_box(Color("#427ed0"), Color("#ffe09a"), 4, 16))
 	ui_theme.set_stylebox("pressed", "Button", _panel_box(Color("#213e6d"), Color("#f9db8d"), 4, 16))
@@ -655,6 +660,10 @@ func _apply_forest_theme() -> void:
 
 func _apply_popup_text_theme(target: Control) -> void:
 	var local_theme := Theme.new()
+	local_theme.default_font = ui_theme.default_font
+	local_theme.default_font_size = 24
+	local_theme.set_font("font","Label",ui_theme.default_font)
+	local_theme.set_font("font","Button",ui_theme.default_font)
 	local_theme.set_color("font_color", "Label", Color("#101e38"))
 	target.theme = local_theme
 
@@ -1543,7 +1552,7 @@ func _refresh() -> void:
 		for skill in DOG_SKILLS.get(kind, []):
 			skill_labels.append(str(SKILL_NAMES.get(skill, skill)))
 		var skill_text: String = " / ".join(PackedStringArray(skill_labels)) if not skill_labels.is_empty() else "없음"
-		info_label.text = "선택: %s (%s) | 공격 %.0f | 특수: %s" % [DOGS[kind], GRADES[kind], ATTACK[kind], skill_text]
+		info_label.text = "빈 칸을 눌러 이동 · 조합 도감에서 제작 가능"
 	elif boss_running:
 		info_label.text = "보스 %d/%d · 남은 시간 %.1f초 · 보스 HP %.0f" % [boss_round, MAX_BOSS_ROUNDS, wave_time_left, float(enemies[0]["hp"]) if not enemies.is_empty() else 0.0]
 	elif wave_running:
