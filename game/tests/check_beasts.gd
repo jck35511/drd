@@ -24,10 +24,11 @@ func _run() -> void:
 	game.rng.seed = 42
 	game._attack_with_skills(0, 0, {"damage": 0.0, "speed": 0.0})
 	_check(float(game.enemies[0]["hp"]) < 1000.0, "lion combat damage executes")
+	game.enemies[0]["magic_res"] = 0.50
 	game._apply_status(0, "magic_res", 3.0, 0.20)
 	var before: float = float(game.enemies[0]["hp"])
 	game._hit_enemy(0, 100.0, true)
-	_check(is_equal_approx(before - float(game.enemies[0]["hp"]), 120.0), "magic vulnerability affects magic damage")
+	_check(is_equal_approx(before - float(game.enemies[0]["hp"]), 60.0), "magic resistance reduction only reduces resistance")
 	game._tick_enemy_effects(3.1)
 	_check(not game.enemies[0]["effects"].has("magic_res"), "magic vulnerability expires")
 	game.dogs[0]["kind"] = 38

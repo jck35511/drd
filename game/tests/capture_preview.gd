@@ -29,7 +29,10 @@ func capture() -> void:
 	await process_frame
 	await RenderingServer.frame_post_draw
 	DirAccess.make_dir_recursive_absolute("res://previews")
-	root.get_texture().get_image().save_png("res://previews/gameplay-720x1280.png")
+	var shot: Image = root.get_texture().get_image()
+	shot.save_png("res://previews/gameplay-720x1280.png")
+	shot.resize(360, 640)
+	print("SKY_PREVIEW:" + Marshalls.raw_to_base64(shot.save_png_to_buffer()))
 	game.difficulty_panel.visible=true
 	game.board.queue_redraw()
 	await process_frame

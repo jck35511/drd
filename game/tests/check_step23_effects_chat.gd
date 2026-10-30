@@ -18,7 +18,7 @@ func run_checks() -> void:
 	game.dogs.append({"cell": 1, "kind": 17, "cooldown": 0.0})
 	game.selected = 0
 	game._refresh()
-	check("보더콜리" in game.selected_context_label.text and "공격력 29" in game.selected_context_label.text, "selected dog stats")
+	check("보더콜리" in game.selected_context_label.text and "기본 %.0f" % Game.ATTACK[17] in game.selected_context_label.text, "selected dog stats")
 	check("공격속도 오라" in game.selected_context_label.text, "actual owned skill shown")
 	game.dogs.clear()
 	game.dogs.append({"cell": 1, "kind": 46, "cooldown": 0.0})

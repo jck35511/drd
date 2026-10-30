@@ -12,6 +12,9 @@ var _in_simulation: bool = false
 var pause_button: Button
 var sky_art = SkyArt.new()
 var attack_flashes: Dictionary = {}
+var unit_gallery: PanelContainer
+var _aura_signature: String = ""
+var _cached_auras: Array[Dictionary] = []
 var combat_fx: Array[Dictionary] = []
 var visual_effects_enabled: bool = true
 # Dog random defense. Step23-polished UI uses one bundled background PNG; no external plugins.
@@ -345,11 +348,7 @@ func _build_difficulty_panel() -> void:
 func _build_ui() -> void:
 	_apply_forest_theme()
 	forest_background = TextureRect.new()
-	var background_image := Image.load_from_file("res://assets/sky_background.png")
-	if background_image != null and not background_image.is_empty():
-		forest_background.texture = ImageTexture.create_from_image(background_image)
-	else:
-		push_error("Sky background PNG could not be loaded")
+	forest_background.texture = load("res://assets/sky_background.png") as Texture2D
 	forest_background.position = Vector2.ZERO
 	forest_background.size = Vector2(720, 1280)
 	forest_background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -1388,9 +1387,13 @@ func _simulation_step(delta: float) -> void:
 			# Completing the route is not a leak: monsters circle the board.
 			enemies[idx]["progress"] = fposmod(float(enemies[idx]["progress"]), 4.0)
 	if not game_over:
+		_ensure_aura_cache()
+		var enemy_positions: Array[Vector2] = []
+		for enemy in enemies:
+			enemy_positions.append(_route_point(float(enemy["progress"])))
 		for d in range(dogs.size()):
 			var dog_kind: int = int(dogs[d]["kind"])
-			var auras: Dictionary = _effective_auras(d)
+			var auras: Dictionary = _cached_auras[d]
 			dogs[d]["cooldown"] = maxf(0.0, float(dogs[d]["cooldown"]) - game_delta)
 			if float(dogs[d]["cooldown"]) > 0.0:
 				continue
@@ -1400,7 +1403,7 @@ func _simulation_step(delta: float) -> void:
 			for e in range(enemies.size()):
 				if float(enemies[e]["hp"]) <= 0.0:
 					continue
-				if dog_position.distance_to(_route_point(float(enemies[e]["progress"]))) <= float(RANGE[dog_kind]) and float(enemies[e]["progress"]) > furthest:
+				if dog_position.distance_to(enemy_positions[e]) <= float(RANGE[dog_kind]) and float(enemies[e]["progress"]) > furthest:
 					target = e
 					furthest = float(enemies[e]["progress"])
 			if target >= 0:
@@ -1715,10 +1718,15 @@ func _build_recipe_panel() -> void:
 	var header := HBoxContainer.new()
 	outer.add_child(header)
 	var title := Label.new()
-	title.text = "조합 도감 · 총 39종"
+	title.text = "조합 · 39종"
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 22)
 	header.add_child(title)
+	var gallery_button := Button.new()
+	gallery_button.text = "49종 유닛 보기"
+	gallery_button.custom_minimum_size = Vector2(180, 46)
+	gallery_button.pressed.connect(_open_unit_gallery)
+	header.add_child(gallery_button)
 	var close := Button.new()
 	close.text = "닫기 ✕"
 	close.custom_minimum_size = Vector2(105, 46)
@@ -2065,3 +2073,65 @@ func _emit_attack_visual(dog_index: int, target: int) -> void:
 	if combat_fx.size() >= 96:
 		combat_fx.pop_front()
 	combat_fx.append({"from": _cell_center(int(dog["cell"])), "to": _route_point(float(enemies[target]["progress"])), "style": style, "age": 0.0, "duration": 0.3})
+
+func _ensure_aura_cache() -> void:
+	var signature: String = ""
+	for dog in dogs:
+		signature += "%d:%d;" % [int(dog["kind"]), int(dog["cell"])]
+	if signature == _aura_signature and _cached_auras.size() == dogs.size():
+		return
+	_aura_signature = signature
+	_cached_auras.clear()
+	for i in range(dogs.size()):
+		_cached_auras.append(_effective_auras(i))
+
+func _open_unit_gallery() -> void:
+	if unit_gallery != null:
+		unit_gallery.visible = true
+		return
+	unit_gallery = PanelContainer.new()
+	unit_gallery.position = Vector2(14, 82)
+	unit_gallery.size = Vector2(692, 1090)
+	unit_gallery.z_index = 230
+	add_child(unit_gallery)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	unit_gallery.add_child(outer)
+	_apply_popup_text_theme(outer)
+	var header := HBoxContainer.new()
+	outer.add_child(header)
+	var title := Label.new()
+	title.text = "천공 성채 · 49종 유닛 도감"
+	title.add_theme_font_size_override("font_size", 23)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var close := Button.new()
+	close.text = "닫기"
+	close.custom_minimum_size = Vector2(100, 52)
+	close.pressed.connect(func() -> void: unit_gallery.visible = false)
+	header.add_child(close)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(620, 950)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	scroll.add_child(grid)
+	for kind in range(49):
+		var card := VBoxContainer.new()
+		card.custom_minimum_size = Vector2(300, 260)
+		grid.add_child(card)
+		var portrait := TextureRect.new()
+		portrait.texture = _dog_portrait(kind)
+		portrait.custom_minimum_size = Vector2(290, 160)
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		card.add_child(portrait)
+		var label := Label.new()
+		label.text = "%s · %s\n공격 %.0f · 사거리 %.0f\n공격 주기 %.2f초" % [DOGS[kind], GRADES[kind], ATTACK[kind], RANGE[kind], COOLDOWN[kind]]
+		label.add_theme_font_size_override("font_size", 17)
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.add_child(label)
