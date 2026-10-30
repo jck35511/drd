@@ -56,6 +56,8 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Prepare project and export dependencies
         run: |
           python3 tools/prepare_project.py
