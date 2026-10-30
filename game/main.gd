@@ -386,7 +386,8 @@ func _build_ui() -> void:
 	wave_hud_label.add_theme_font_size_override("font_size", 15)
 	add_child(wave_hud_label)
 	info_label = Label.new()
-	info_label.position = Vector2(28, 885)
+	info_label.z_index = 1
+	info_label.position = Vector2(28, 889)
 	info_label.size = Vector2(664, 44)
 	info_label.clip_text = false
 	info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -449,8 +450,8 @@ func _build_ui() -> void:
 	for b in [draw_button, mythic_draw_button, transcendent_draw_button]:
 		b.add_theme_font_size_override("font_size", 19)
 	draw_feedback = Label.new()
-	draw_feedback.position = Vector2(28, 948)
-	draw_feedback.size = Vector2(664, 28)
+	draw_feedback.position = Vector2(28, 957)
+	draw_feedback.size = Vector2(664, 24)
 	draw_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	draw_feedback.add_theme_font_size_override("font_size", 15)
 	draw_feedback.text = "맹수 각 3% · 신화 각 1% · 초월 각 0.1% · 골드 0~10배"
@@ -460,8 +461,8 @@ func _build_ui() -> void:
 	_build_draw_info_panel()
 	var help := Label.new()
 	help.text = "유닛 → 빈 칸: 이동 · 중앙: 지원/조합 · 적 처치 +5G"
-	help.position = Vector2(28, 901)
-	help.size = Vector2(664, 39)
+	help.position = Vector2(28, 933)
+	help.size = Vector2(664, 22)
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.add_theme_font_size_override("font_size", 15)
 	help.add_theme_color_override("font_color", Color("#fff3cd"))

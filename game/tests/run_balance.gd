@@ -9,10 +9,14 @@ func run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--difficulty="): difficulty_name = arg.trim_prefix("--difficulty=")
 	for recipe in Game.RECIPES: recipes[int(recipe["result"])] = recipe
-	for seed_value in [1, 5, 12, 32, 55, 83, 101, 202]:
-		var outcome: Dictionary = play(seed_value)
-		results.append(outcome)
-		print("BALANCE_RESULT:" + JSON.stringify(outcome))
+	for policy in ["summon_first", "gamble_first"]:
+		for seed_value in [1, 5, 12, 32, 55, 83, 101, 202]:
+			var outcome: Dictionary = play(seed_value,policy)
+			results.append(outcome)
+			print("BALANCE_RESULT:" + JSON.stringify(outcome))
+	var stress: Dictionary = controlled()
+	print("CONTROLLED_RESULT:" + JSON.stringify(stress))
+	results.append(stress)
 	DirAccess.make_dir_recursive_absolute("res://reports")
 	var report := FileAccess.open("res://reports/balance-" + difficulty_name + ".json", FileAccess.WRITE)
 	report.store_string(JSON.stringify({"difficulty":difficulty_name,"method":"Legal-action heuristic; sample is not a human win-rate estimate","results":results}, "\t"))
@@ -58,7 +62,7 @@ func manage(g: Control, stats: Dictionary) -> void:
 			elif result >= 42: g._draw_mythic_gacha()
 			else: g._draw_gacha()
 			stats["draws"] += 1
-			return
+		return # Hold income for the missing item before spending on more summons.
 	if g.gold >= 20 and g.dogs.size() < 35:
 		g._summon()
 		stats["summons"] += 1
@@ -69,7 +73,7 @@ func manage(g: Control, stats: Dictionary) -> void:
 		for i in range(g.dogs.size()):
 			var kind: int = int(g.dogs[i]["kind"])
 			if int(stock.get(kind,0)) <= 0 or g._sell_value(kind) <= 0: continue
-			var score: float = float(g.ATTACK[kind]) / float(g.COOLDOWN[kind])
+			var score: float = -float(stock.get(kind,0)) * 1000.0 + float(g.ATTACK[kind]) / float(g.COOLDOWN[kind])
 			if score < value:
 				lowest = i
 				value = score
@@ -106,7 +110,7 @@ func place(g: Control) -> void:
 				best = cell
 		dog["cell"] = best
 		used[best] = true
-func play(seed_value: int) -> Dictionary:
+func play(seed_value: int, policy: String) -> Dictionary:
 	var g: Control = Game.new()
 	g.persistence_enabled = false
 	g.visual_effects_enabled = false
@@ -114,10 +118,10 @@ func play(seed_value: int) -> Dictionary:
 	g.difficulty_confirmed = true
 	g.difficulty = difficulty_name
 	g.rng.seed = seed_value
-	var stats: Dictionary = {"seed":seed_value,"difficulty":difficulty_name,"draws":0,"summons":0,"crafts":0,"sales":0,"bosses":[]}
+	var stats: Dictionary = {"policy":policy,"seed":seed_value,"difficulty":difficulty_name,"draws":0,"summons":0,"crafts":0,"sales":0,"bosses":[]}
 	# User's original pre-wave gambling is legal; stop at 500G or below 50G.
 	for attempt in range(500):
-		if g.gold >= 500 or g.gold < 50: break
+		if policy == "summon_first" or g.gold >= 500 or g.gold < 50: break
 		g._draw_transcendent_gacha()
 		stats["draws"] += 1
 	for action in range(35): manage(g,stats)
@@ -138,3 +142,26 @@ func play(seed_value: int) -> Dictionary:
 	stats.merge({"victory":g.victory,"wave":g.wave,"boss":g.boss_round,"gold":g.gold,"peak_enemies":peak,"units":counts(g),"items":g.beast_items.duplicate(),"game_seconds":float(ticks)/60.0,"wall_seconds":float(Time.get_ticks_msec()-started)/1000.0,"ended":g.game_over or g.victory,"reason":"victory" if g.victory else ("boss_timeout" if peak < g._field_limit() else "field_limit")})
 	g.free()
 	return stats
+
+func controlled() -> Dictionary:
+	# Deliberately injected late-game roster: engine endurance, NOT obtainable-economy proof.
+	var g: Control = Game.new()
+	g.persistence_enabled = false
+	g.visual_effects_enabled = false
+	g._in_simulation = true
+	g.difficulty_confirmed = true
+	g.difficulty = difficulty_name
+	g.rng.seed = 999
+	for cell in range(36):
+		if cell in [14,15,20,21]: continue
+		g.dogs.append({"kind":46 + cell % 3,"cell":cell,"cooldown":0.0})
+	g._start_wave()
+	var ticks: int = 0
+	var peak: int = 0
+	while not g.game_over and not g.victory and ticks < 230000:
+		g._simulation_step(1.0/60.0)
+		peak = maxi(peak,g.enemies.size())
+		ticks += 1
+	var out: Dictionary = {"policy":"injected_roster_engine_endurance_not_economy","difficulty":difficulty_name,"victory":g.victory,"wave":g.wave,"boss":g.boss_round,"game_seconds":float(ticks)/60.0,"peak_enemies":peak}
+	g.free()
+	return out

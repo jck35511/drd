@@ -1,6 +1,7 @@
 """Smoke test the exported APK, without modifying game rules or the APK."""
 from pathlib import Path
-import subprocess, time, json, base64
+import subprocess, time, json, base64, io
+from PIL import Image
 OUT = Path("build/android-smoke")
 OUT.mkdir(parents=True, exist_ok=True)
 PKG = "com.jck35511.meongrandy"
@@ -33,6 +34,17 @@ time.sleep(2)
 adb("shell", "monkey", "-p", PKG, "1")
 time.sleep(3)
 capture("04-resumed")
+save_path = adb("shell","run-as",PKG,"find","files","-name","sky_castle_save.json").decode().strip().splitlines()
+assert save_path, "Background save was not created"
+state = json.loads(adb("shell","run-as",PKG,"cat",save_path[0]))
+assert state["wave"] >= 1 and len(state["dogs"]) >= 1, "Touch did not start a playable run"
+(OUT / "saved-run.json").write_text(json.dumps(state,ensure_ascii=False,indent=2))
+for name in ["03-gameplay","04-resumed"]:
+    im = Image.open(OUT / (name + ".png"))
+    im.thumbnail((360,640))
+    buf = io.BytesIO()
+    im.save(buf,format="PNG")
+    print("ANDROID_PREVIEW_" + name + ":" + base64.b64encode(buf.getvalue()).decode())
 logs = adb("logcat", "-d").decode("utf-8", "replace")
 (OUT / "logcat.txt").write_text(logs)
 (OUT / "memory.txt").write_bytes(adb("shell", "dumpsys", "meminfo", PKG))
