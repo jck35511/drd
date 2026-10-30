@@ -96,6 +96,10 @@ jobs:
           name: MeongRandy-Step29-Android-and-source
           path: build/
   android-smoke:
+    env:
+      DISPLAY: ":99"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      GALLIUM_DRIVER: llvmpipe
     needs: android
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -112,6 +116,16 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Start Mesa software display
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils
+          Xvfb :99 -screen 0 1280x1024x24 > /tmp/meongrandy-xvfb.log 2>&1 &
+          for attempt in 1 2 3 4 5; do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          glxinfo -B
       - name: Test installation, launch and touch on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -120,7 +134,7 @@ jobs:
           target: google_apis
           profile: pixel_2
           disable-animations: true
-          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu host -feature -Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: python3 tools/android_smoke.py
       - uses: actions/upload-artifact@v4
         if: always()
