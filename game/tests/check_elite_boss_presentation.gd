@@ -10,8 +10,10 @@ func run() -> void:
 	g._select_difficulty("보통")
 	var auras: Dictionary = {"damage":0.0,"magic":0.0,"speed":0.0,"cooldown":0.0}
 	for kind in range(36,49):
-		g.dogs = [{"kind":kind,"cell":0,"cooldown":0.0}]
-		g.enemies = [{"progress":0.0,"hp":100000000.0,"max_hp":100000000.0,"armor":3.0,"magic_res":0.1,"effects":{}}]
+		g.dogs.clear()
+		g.dogs.append({"kind":kind,"cell":0,"cooldown":0.0})
+		g.enemies.clear()
+		g.enemies.append({"progress":0.0,"hp":100000000.0,"max_hp":100000000.0,"armor":3.0,"magic_res":0.1,"effects":{}})
 		g.combat_fx.clear()
 		g._attack_with_skills(0,0,auras)
 		assert(g.attack_vectors.has(0),"Elite must have a directional attack motion")
@@ -27,15 +29,18 @@ func run() -> void:
 		assert(proc_seen,"Every elite's real skill procs must produce feedback")
 		assert(g.combat_fx.size()<=96,"Effects must stay within the mobile budget")
 	# Visual/audio hooks must not consume combat RNG or alter outcomes.
-	g.dogs = [{"kind":46,"cell":0,"cooldown":0.0}]
+	g.dogs.clear()
+	g.dogs.append({"kind":46,"cell":0,"cooldown":0.0})
 	var enemy: Dictionary = {"progress":0.0,"hp":100000.0,"max_hp":100000.0,"armor":3.0,"magic_res":0.1,"effects":{}}
-	g.enemies = [enemy.duplicate(true)]
+	g.enemies.clear()
+	g.enemies.append(enemy.duplicate(true))
 	g.rng.seed = 321
 	g.visual_effects_enabled = true
 	g._attack_with_skills(0,0,auras)
 	var first: Dictionary = g.enemies[0].duplicate(true)
 	var first_rng: int = g.rng.state
-	g.enemies = [enemy.duplicate(true)]
+	g.enemies.clear()
+	g.enemies.append(enemy.duplicate(true))
 	g.rng.seed = 321
 	g.visual_effects_enabled = false
 	g._attack_with_skills(0,0,auras)
@@ -47,6 +52,7 @@ func run() -> void:
 	g.wave_time_left = 9.4
 	g._refresh()
 	assert(g.boss_hud.visible and g.boss_countdown.text.contains("9.4"),"Boss deadline must remain visible with a selected unit")
+	assert(not g.boss_hud.get_rect().intersects(g.selected_context_panel.get_rect()),"Boss HUD must not cover selected unit details")
 	assert(g.game_audio.boss_mode and g.game_audio.music.stream == g.game_audio.music_tracks["boss_theme"])
 	assert(g.game_audio.music.stream.get_length()>20.0)
 	g.paused = true

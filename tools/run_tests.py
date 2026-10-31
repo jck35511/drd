@@ -5,7 +5,13 @@ report=root/"work/reports";report.mkdir(parents=True,exist_ok=True)
 results=[]
 for test in sorted((root/"game/tests").glob("check_*.gd")):
     started=time.monotonic()
-    proc=subprocess.run(["godot","--headless","--path",str(root/"game"),"--script","res://tests/"+test.name],capture_output=True,text=True,timeout=90)
+    try:
+        proc=subprocess.run(["godot","--headless","--path",str(root/"game"),"--script","res://tests/"+test.name],capture_output=True,text=True,timeout=90)
+    except subprocess.TimeoutExpired as error:
+        print("TIMEOUT "+test.name,flush=True)
+        print((error.stdout or b"").decode("utf-8","replace") if isinstance(error.stdout,bytes) else error.stdout,flush=True)
+        print((error.stderr or b"").decode("utf-8","replace") if isinstance(error.stderr,bytes) else error.stderr,flush=True)
+        raise
     log=proc.stdout+proc.stderr
     (report/(test.stem+".log")).write_text(log)
     errors=("SCRIPT ERROR:" in log or "Parse Error:" in log or "ERROR:" in log)

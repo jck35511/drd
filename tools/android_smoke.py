@@ -1,6 +1,6 @@
 """Smoke test the exported APK, without modifying game rules or the APK."""
 from pathlib import Path
-import subprocess, time, json, base64, io
+import subprocess, time, json, base64, io, shlex
 from PIL import Image, ImageChops
 OUT = Path("build/android-smoke")
 OUT.mkdir(parents=True, exist_ok=True)
@@ -98,6 +98,26 @@ assert save_path, "Background save was not created"
 state = json.loads(adb("shell","run-as",PKG,"cat",save_path[0]))
 assert state["wave"] >= 1 and len(state["dogs"]) >= 1, "Touch did not start a playable run"
 (OUT / "saved-run.json").write_text(json.dumps(state,ensure_ascii=False,indent=2))
+
+# Restore a test-only boss save into the actual APK; all gameplay code remains production.
+adb("shell","am","force-stop",PKG)
+fixture=Path("work/verification/game/previews/boss-fixture.json").read_bytes()
+subprocess.run(["adb","shell","run-as "+PKG+" sh -c "+shlex.quote("cat > "+shlex.quote(save_path[0]))],input=fixture,check=True)
+adb("shell","monkey","-p",PKG,"1")
+time.sleep(4)
+tap(615,40) # Saved games intentionally restore paused.
+tap(165,235) # Select a unit: countdown must remain visible.
+time.sleep(3)
+capture("12-boss-elite-combat")
+adb("shell","input","keyevent","KEYCODE_HOME")
+time.sleep(2)
+boss_state=json.loads(adb("shell","run-as",PKG,"cat",save_path[0]))
+assert boss_state["boss_running"] and 0 < boss_state["wave_time_left"] < 60, "Boss timer did not progress"
+assert boss_state["enemies"][0]["hp"] < 10000000, "Elite units did not attack"
+(OUT/"boss-run.json").write_text(json.dumps(boss_state,ensure_ascii=False,indent=2))
+adb("shell","monkey","-p",PKG,"1")
+time.sleep(2)
+
 adb("shell","wm","size","720x1600")
 time.sleep(3)
 capture("05-tall-screen")

@@ -1581,6 +1581,8 @@ func _refresh() -> void:
 	gold_hud_label.text = "🪙 %dG" % gold
 	if wave_hud_label != null:
 		wave_hud_label.text = "WAVE %d/88\n%s · %s" % [wave + boss_round, "보스 웨이브" if boss_running or boss_pending else "일반 웨이브", difficulty]
+	if boss_running and wave_hud_label != null:
+		wave_hud_label.text = "WAVE %d/88\n보스 %d/8 · %.1f초" % [wave+boss_round,boss_round,maxf(0.0,wave_time_left)]
 	if not difficulty_confirmed:
 		info_label.text = "난이도 선택 후 게임을 시작하세요."
 	elif victory:
@@ -2276,10 +2278,13 @@ func _add_volume_controls(content: VBoxContainer) -> void:
 
 func _build_boss_hud() -> void:
 	boss_hud = PanelContainer.new()
-	boss_hud.position = Vector2(95,744)
-	boss_hud.size = Vector2(530,102)
+	boss_hud.position = Vector2(28,880)
+	boss_hud.size = Vector2(664,72)
 	boss_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	boss_hud.add_theme_stylebox_override("panel",_panel_box(Color("#251c39"),Color("#f4ad63"),3,12))
+	var frame: StyleBoxFlat = _panel_box(Color("#251c39"),Color("#f4ad63"),3,12)
+	frame.content_margin_top = 4.0
+	frame.content_margin_bottom = 4.0
+	boss_hud.add_theme_stylebox_override("panel",frame)
 	add_child(boss_hud)
 	var column := VBoxContainer.new()
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2290,7 +2295,7 @@ func _build_boss_hud() -> void:
 	boss_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_child(boss_countdown)
 	boss_clock_bar = ProgressBar.new()
-	boss_clock_bar.custom_minimum_size = Vector2(480,12)
+	boss_clock_bar.custom_minimum_size = Vector2(600,8)
 	boss_clock_bar.max_value = BOSS_DURATION
 	boss_clock_bar.show_percentage = false
 	boss_clock_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2299,8 +2304,9 @@ func _build_boss_hud() -> void:
 func _refresh_boss_hud() -> void:
 	if boss_hud == null: return
 	boss_hud.visible = boss_running and not game_over and not victory
+	if info_label != null: info_label.visible = not boss_hud.visible
 	if not boss_hud.visible: return
 	var time_left: float = maxf(0.0,wave_time_left)
-	boss_countdown.text = "보스 처치까지 %.1f초 · %s" % [time_left,"일시정지" if paused or settings_panel != null and settings_panel.visible else "%d배속" % game_speed]
+	boss_countdown.text = "보스 처치 제한 %.1f초 · %s" % [time_left,"일시정지" if paused or settings_panel != null and settings_panel.visible else "%d배속" % game_speed]
 	boss_countdown.add_theme_color_override("font_color",Color("#ff8c8c") if time_left <= 10.0 else Color("#fff0bc"))
 	boss_clock_bar.value = time_left

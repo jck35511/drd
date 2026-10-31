@@ -18,8 +18,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Inspect all atlas boundaries
         run: |
-          python3 -m pip install Pillow
+          python3 -m pip install Pillow numpy scipy
           python3 tools/audit_atlases.py
+          python3 tools/inspect_sprite_regions.py
       - name: Prepare editable project
         run: python3 tools/prepare_project.py
       - name: Install Godot and display support
@@ -43,6 +44,8 @@ jobs:
         run: xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_preview.gd
       - name: Capture readable lists and audio controls
         run: xvfb-run -a godot --path game --rendering-method gl_compatibility --script res://tests/capture_accessibility.gd
+      - name: Capture elite combat, boss deadline and all unit textures
+        run: xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_elite_boss.gd
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4
