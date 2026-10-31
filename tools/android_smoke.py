@@ -37,13 +37,13 @@ if "Got it" in hierarchy or "Viewing full screen" in hierarchy:
     time.sleep(2)
 capture("01-difficulty")
 # Coordinates follow the actual 720x1280 Godot layout.
-tap(360, 500)
+tap_control("normal_difficulty")
 time.sleep(2)
 capture("02-selected")
 for _ in range(4):
-    tap(125, 1040)
+    tap_control("summon")
     time.sleep(0.2)
-tap(360, 1040)
+tap_control("start_wave")
 time.sleep(15)
 capture("03-gameplay")
 tap(615,40) # Pause while inspecting menus.
