@@ -2165,7 +2165,9 @@ func _emit_attack_visual(dog_index: int, target: int) -> void:
 	var origin: Vector2 = _cell_center(int(dog["cell"]))
 	var destination: Vector2 = _route_point(float(enemies[target]["progress"]))
 	attack_flashes[int(dog["cell"])] = presentation_clock
-	attack_durations[int(dog["cell"])] = SkyArt.AttackAnimator.duration_for(float(COOLDOWN[kind]),game_speed)
+	var actual_cycle: float = float(dog.get("cooldown",0.0))
+	if actual_cycle<=0.0: actual_cycle=float(COOLDOWN[kind])
+	attack_durations[int(dog["cell"])] = SkyArt.AttackAnimator.duration_for(actual_cycle,game_speed)
 	attack_vectors[int(dog["cell"])] = (destination-origin).normalized()
 	_push_combat_fx({"from":origin,"to":destination,"style":ELITE_STYLES[kind-36] if kind >= 36 else "bolt","age":0.0,"duration":0.46 if kind >= 36 else 0.3,"kind":kind,"skill":""})
 func _emit_skill_visual(dog_index: int, target: int, skill: String) -> void:

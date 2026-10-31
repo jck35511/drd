@@ -9,7 +9,7 @@ static func clip_for(kind: int) -> String:
 	if kind in [8,27,30,36,43,46]: return "cleave"
 	return "slash"
 static func duration_for(cooldown: float, speed: int) -> float:
-	return clampf(cooldown / maxf(1.0,float(speed)) * 0.82,0.13,0.68)
+	return clampf(cooldown / maxf(1.0,float(speed)) * 0.82,0.01,0.68)
 static func sample(kind: int, aim: Vector2, phase: float) -> Dictionary:
 	var p: float = clampf(phase,0.0,1.0)
 	var clip: String = clip_for(kind)

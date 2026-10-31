@@ -25,7 +25,7 @@ jobs:
       - name: Install Godot and display support
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri fonts-noto-cjk
+          sudo apt-get install -y xvfb libgl1-mesa-dri fonts-noto-cjk ffmpeg
           mkdir -p work
           curl --fail --location --retry 3 "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -o work/godot.zip
           unzip -q work/godot.zip -d work
@@ -49,6 +49,11 @@ jobs:
         run: |
           xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_attack_showcase.gd
           ffmpeg -y -framerate 30 -i game/previews/motion-frame-%02d.png -vf "tpad=stop_mode=clone:stop_duration=0.3" -c:v libx264 -pix_fmt yuv420p game/previews/attack-motion-demo.mp4
+      - name: Upload attack motion preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeongRandy-0.29.3-motion-preview
+          path: game/previews/attack-motion-demo.mp4
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4
