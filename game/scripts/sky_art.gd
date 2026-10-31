@@ -1,4 +1,6 @@
 extends RefCounted
+const AttackAnimator = preload("res://scripts/attack_animator.gd")
+const SkillEffects = preload("res://scripts/skill_effects.gd")
 # Shared atlases: 49 independent hero illustrations, four regular enemies, eight bosses.
 var atlases: Array[Texture2D] = []
 var regions: Array[Texture2D] = []
@@ -96,27 +98,33 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 		var cell: int = int(dog["cell"])
 		var center: Vector2 = game._cell_center(cell)
 		var elapsed: float = game.presentation_clock - float(game.attack_flashes.get(cell, -10.0))
-		var progress: float = clampf(elapsed / (0.36 if kind >= 36 else 0.2),0.0,1.0)
-		var pulse: float = sin(progress * PI)
 		var aim: Vector2 = game.attack_vectors.get(cell,Vector2.UP)
-		var lunge: float = 12.0 if kind >= 36 and kind < 42 else 7.0
+		var duration: float = float(game.attack_durations.get(cell,0.6))
+		var phase: float = clampf(elapsed/maxf(0.01,duration),0.0,1.0)
+		var pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
 		var skill_elapsed: float = game.presentation_clock - float(game.skill_flashes.get(cell,-10.0))
 		canvas.draw_circle(center + Vector2(0, 22), 22.0, Color(0.1, 0.15, 0.3, 0.18))
 		if kind >= 36:
 			var ring := Color("#e7be4c") if kind < 42 else Color("#56bfee") if kind < 46 else Color("#ba76f4")
 			canvas.draw_arc(center, 29.0, 0.0, TAU, 36, ring, 1.5, true)
-		if kind >= 36:
-			var rune_color: Color = effect_color(ELITE_STYLES[kind-36])
+		if DOG_HAS_AURA.has(kind) or kind>=36:
+			var rune_color: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "nature")
 			if DOG_HAS_AURA.has(kind):
 				rune_color.a = 0.35 + 0.15 * sin(game.presentation_clock*2.0)
 				canvas.draw_arc(center,26.0,game.presentation_clock,game.presentation_clock+TAU*0.8,32,rune_color,2.0,true)
 			if skill_elapsed >= 0.0 and skill_elapsed < 0.7:
 				rune_color.a = 1.0-skill_elapsed/0.7
 				canvas.draw_arc(center,24.0+skill_elapsed*24.0,0.0,TAU,40,rune_color,3.0,true)
-		# Visible anticipation/lunge/recovery; the combat position and range never move.
-		canvas.draw_set_transform(center + aim*pulse*lunge + Vector2(0,-pulse*4.0),aim.x*pulse*0.10,Vector2(1.0+pulse*0.10,1.0-pulse*0.05))
-		draw_character(canvas, unit_texture(kind), Vector2.ZERO, 65.0)
+		var motion_center: Vector2 = center + Vector2(pose["offset"])
+		var motion_color: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "bolt")
+		if phase>0.23 and phase<0.63 and AttackAnimator.clip_for(kind) in ["slash","pounce","cleave"]:
+			for echo in range(2,0,-1):
+				canvas.draw_set_transform(motion_center-aim*float(echo)*11,float(pose["rotation"])-float(echo)*0.06,pose["scale"])
+				draw_character(canvas,unit_texture(kind),Vector2.ZERO,65.0,Color(motion_color,0.14/float(echo)))
+		canvas.draw_set_transform(motion_center,float(pose["rotation"]),pose["scale"])
+		draw_character(canvas,unit_texture(kind),Vector2.ZERO,65.0)
 		canvas.draw_set_transform(Vector2.ZERO)
+		AttackAnimator.draw_weapon(canvas,motion_center,aim,pose,motion_color)
 		if game.selected == i:
 			canvas.draw_arc(center, 33.0, 0.0, TAU, 36, Color("#f7bd3e"), 3.0, true)
 	for enemy in game.enemies:
@@ -146,11 +154,15 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 
 
 const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
-const DOG_HAS_AURA := [38,43,45,47,48]
+const DOG_HAS_AURA := [16,17,26,28,35,38,43,45,47,48]
 func effect_color(style: String) -> Color:
 	var colors: Dictionary = {"roar":"#ffca57","claw":"#ff8753","fang":"#bad9ff","shadow":"#c29cff","wind":"#d1ffb0","spirit":"#ff9fdd","ice":"#8cffff","sun":"#fff18b","lightning":"#b5d4ff","nature":"#8dffb9","abyss":"#d489ff","heaven":"#fff4bb","hell":"#ff6e6e","bolt":"#ffe3a0"}
 	return Color(colors.get(style,"#d4beff"))
 func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
+	if float(fx["age"]) < 0.0: return
+	if not str(fx.get("skill","")).is_empty():
+		SkillEffects.draw(canvas,fx,game)
+		return
 	var p: float = clampf(float(fx["age"]) / float(fx["duration"]),0.0,1.0)
 	var origin: Vector2 = fx["from"]
 	var target: Vector2 = fx["to"]

@@ -82,7 +82,7 @@ write("boss_theme",boss_music)
 styles=["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
 pitches=[38,50,45,55,69,81,88,76,90,79,33,84,36]
 for idx,(style,pitch) in enumerate(zip(styles,pitches)):
-    for is_skill in [False,True]:
+    for is_skill in [False]:
         duration=0.58 if is_skill else 0.22
         buf=array("f",[0.0])*int(RATE*(duration+0.18))
         intervals=[0,7,12] if is_skill else [0,7]
@@ -96,4 +96,79 @@ for idx,(style,pitch) in enumerate(zip(styles,pitches)):
                 hiss=math.sin(2*math.pi*(1800*t+900*t*t))*math.sin(2*math.pi*2713*t)
                 buf[i]+=0.16*hiss*math.exp(-t*13)
         write(("skill_" if is_skill else "attack_")+style,buf)
-print("Generated boss music and 26 elite attack/skill effects")
+print("Generated boss music and 13 elite attack accents")
+
+# Semantic skill Foley: transients, friction, glass, electricity, fire, bubbles and aura cues.
+# These effects are deliberately not the earlier per-character melodic arpeggios.
+import random, hashlib, json
+skill_names=["crit","bleed","stun","slow","multi","armor","splash","heavy","area_stun","hp_percent","magic_splash","magic_res","freeze","chain","burn","vulnerable","poison","attack_aura","speed_aura","magic_aura","cooldown_aura"]
+audit={}
+for number,skill in enumerate(skill_names):
+    duration={"crit":0.4,"multi":0.52,"heavy":0.72,"burn":0.9,"poison":0.9,"freeze":0.82,"chain":0.62}.get(skill,0.72)
+    count=int(RATE*duration)
+    buf=array("f",[0.0])*count
+    noise_rng=random.Random(89311+number)
+    filtered=0.0
+    for i in range(count):
+        t=i/RATE
+        noise=noise_rng.uniform(-1,1)
+        filtered=filtered*0.82+noise*0.18
+        env=math.exp(-t*6)
+        value=0.0
+        if skill=="crit":
+            value=0.45*noise*math.exp(-t*24)+0.5*math.sin(2*math.pi*(1500*t-1400*t*t))*math.exp(-t*15)+0.4*math.sin(2*math.pi*120*t)*env
+        elif skill=="heavy":
+            value=0.8*math.sin(2*math.pi*(85*t-35*t*t))*math.exp(-t*7)+filtered*0.6*math.exp(-t*10)
+        elif skill=="multi":
+            for offset in [0,0.13,0.26]:
+                u=t-offset
+                if 0<=u<0.2: value+=(noise*0.4+math.sin(2*math.pi*(900*u-1700*u*u))*0.3)*math.exp(-u*22)
+        elif skill=="bleed":
+            value=(noise-filtered)*0.65*math.exp(-t*13)+filtered*math.sin(2*math.pi*40*t)*0.5*env
+        elif skill in ["stun","area_stun"]:
+            value=(math.sin(2*math.pi*1047*t)+0.6*math.sin(2*math.pi*1479*t))*0.35*math.exp(-t*4)*(0.7+0.3*math.cos(t*45))
+            if skill=="area_stun": value+=0.7*math.sin(2*math.pi*62*t)*math.exp(-t*8)+filtered*0.3*env
+        elif skill=="slow":
+            value=filtered*0.9*env+math.sin(2*math.pi*(700*t-350*t*t))*0.35*math.exp(-t*4)
+        elif skill in ["armor","magic_res"]:
+            frequencies=[343,707,1195,1677] if skill=="armor" else [1217,1931,2677,3413]
+            value=sum(math.sin(2*math.pi*hz0*t)*math.exp(-t*(5+j*2))*0.2 for j,hz0 in enumerate(frequencies))
+            value+=noise*0.25*math.exp(-t*23)
+        elif skill=="hp_percent":
+            for offset in [0,0.23]:
+                u=t-offset
+                if u>=0: value+=(math.sin(2*math.pi*68*u)*0.7+filtered*0.2)*math.exp(-u*12)
+        elif skill=="splash":
+            value=filtered*1.5*math.exp(-t*8)+math.sin(2*math.pi*(110*t-70*t*t))*0.5*math.exp(-t*10)
+        elif skill=="magic_splash":
+            value=math.sin(2*math.pi*(400*t+1100*t*t))*0.35*math.exp(-t*4)+noise*0.3*math.exp(-abs(t-0.16)*20)
+        elif skill=="freeze":
+            value=sum(math.sin(2*math.pi*hz0*t)*0.16*math.exp(-t*(4+j*2)) for j,hz0 in enumerate([1321,2377,3163,4291]))
+            value+=(noise-filtered)*0.25*math.exp(-t*7)
+        elif skill=="chain":
+            gate=max(0,math.cos(t*2*math.pi*23))**5
+            value=(noise*0.7+math.sin(2*math.pi*170*t)*0.3)*gate*math.exp(-t*3)+math.sin(2*math.pi*3100*t)*0.12*env
+        elif skill=="burn":
+            value=filtered*1.3*(1-t/duration)
+            if noise>0.975: value+=0.7*(1-t/duration)
+        elif skill=="vulnerable":
+            value=(math.sin(2*math.pi*415*t)+math.sin(2*math.pi*440*t))*0.26*env+math.sin(2*math.pi*(180*t+200*t*t))*0.25*env
+        elif skill=="poison":
+            u=t%0.12
+            value=math.sin(2*math.pi*(950*u-2200*u*u))*math.exp(-u*35)*0.45*(1-t/duration)+filtered*0.2
+        elif skill.endswith("_aura"):
+            base={"attack_aura":220,"speed_aura":880,"magic_aura":1320,"cooldown_aura":660}[skill]
+            value=(math.sin(2*math.pi*base*t)+0.5*math.sin(2*math.pi*base*1.5*t))*0.3*math.exp(-t*4)
+            if skill=="speed_aura": value*=0.6+0.4*math.sin(t*90)
+            if skill=="cooldown_aura": value+=noise*0.35*math.exp(-(t%0.18)*110)
+        fade=min(1,t/0.004,(duration-t)/0.025)
+        buf[i]=value*max(0,fade)
+    peak=max(abs(v) for v in buf)
+    for i in range(count): buf[i]*=0.72/max(peak,0.001)
+    write("skill_"+skill,buf)
+    raw=(OUT/("skill_"+skill+".wav")).read_bytes()
+    audit[skill]={"seconds":duration,"peak":round(max(abs(v) for v in buf),3),"rms":round(math.sqrt(sum(v*v for v in buf)/count),4),"sha256":hashlib.sha256(raw).hexdigest()}
+assert len({v["sha256"] for v in audit.values()})==len(skill_names)
+assert all(v["rms"]>0.015 and v["peak"]<0.9 for v in audit.values())
+(OUT/"skill-audio-audit.json").write_text(json.dumps(audit,indent=2),encoding="utf-8")
+print("SKILL_AUDIO_AUDIT:"+json.dumps(audit))

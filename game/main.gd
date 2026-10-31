@@ -19,6 +19,8 @@ var pause_button: Button
 var sky_art = SkyArt.new()
 var attack_flashes: Dictionary = {}
 var attack_vectors: Dictionary = {}
+var attack_durations: Dictionary = {}
+var _aura_present: Dictionary = {}
 var skill_flashes: Dictionary = {}
 var boss_hud: PanelContainer
 var boss_countdown: Label
@@ -1376,19 +1378,26 @@ func _attack_with_skills(dog_index: int, target: int, auras: Dictionary) -> void
 	var power: Dictionary = SKILL_POWER[tier]
 	var damage: float = float(ATTACK[kind]) * _tier_damage_scale(kind) * (1.0 + float(auras["damage"]))
 	if skills.has("crit") and rng.randf() < float(chance["crit"]):
+		_emit_skill_visual(dog_index,target,"crit")
 		damage *= float(power["crit"])
 	_hit_basic_dog_enemy(kind, target, damage)
 	if skills.has("multi") and rng.randf() < float(chance["multi"]):
+		_emit_skill_visual(dog_index,target,"multi")
 		_hit_basic_dog_enemy(kind, target, damage * float(power["multi"]))
 	if skills.has("bleed") and rng.randf() < float(chance["bleed"]):
+		_emit_skill_visual(dog_index,target,"bleed")
 		_apply_status(target, "bleed", BLEED_DURATION, float(ATTACK[kind]) * _tier_damage_scale(kind) * float(power["bleed"]) * _matchup_multiplier(kind, target))
 	if skills.has("stun") and rng.randf() < float(chance["stun"]):
+		_emit_skill_visual(dog_index,target,"stun")
 		_apply_status(target, "stun", float(power["stun"]))
 	if skills.has("slow") and rng.randf() < float(chance["slow"]):
+		_emit_skill_visual(dog_index,target,"slow")
 		_apply_status(target, "slow", SLOW_DURATION, float(power["slow"]))
 	if skills.has("armor") and rng.randf() < float(chance["armor"]):
+		_emit_skill_visual(dog_index,target,"armor")
 		_apply_status(target, "armor", ARMOR_DURATION, float(power["armor"]))
 	if skills.has("splash") and rng.randf() < float(chance["splash"]):
+		_emit_skill_visual(dog_index,target,"splash")
 		var impact: Vector2 = _route_point(float(enemies[target]["progress"]))
 		for other_idx in range(enemies.size()):
 			if other_idx == target or float(enemies[other_idx]["hp"]) <= 0.0:
@@ -1492,6 +1501,8 @@ func _restart() -> void:
 	combat_fx.clear()
 	attack_flashes.clear()
 	attack_vectors.clear()
+	attack_durations.clear()
+	_aura_present.clear()
 	skill_flashes.clear()
 	if persistence_enabled:
 		RunStorage.clear_save()
@@ -2154,18 +2165,27 @@ func _emit_attack_visual(dog_index: int, target: int) -> void:
 	var origin: Vector2 = _cell_center(int(dog["cell"]))
 	var destination: Vector2 = _route_point(float(enemies[target]["progress"]))
 	attack_flashes[int(dog["cell"])] = presentation_clock
+	attack_durations[int(dog["cell"])] = SkyArt.AttackAnimator.duration_for(float(COOLDOWN[kind]),game_speed)
 	attack_vectors[int(dog["cell"])] = (destination-origin).normalized()
 	_push_combat_fx({"from":origin,"to":destination,"style":ELITE_STYLES[kind-36] if kind >= 36 else "bolt","age":0.0,"duration":0.46 if kind >= 36 else 0.3,"kind":kind,"skill":""})
 func _emit_skill_visual(dog_index: int, target: int, skill: String) -> void:
 	if dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
 	var dog: Dictionary = dogs[dog_index]
 	var kind: int = int(dog["kind"])
-	if kind < 36: return
-	_sound("skill_" + ELITE_STYLES[kind-36])
+	_sound(GameAudio.skill_sound(skill))
 	if not visual_effects_enabled: return
 	skill_flashes[int(dog["cell"])] = presentation_clock
-	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36],"age":0.0,"duration":0.85,"kind":kind,"skill":skill})
+	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36] if kind>=36 else "bolt","age":0.0,"duration":1.1 if kind>=36 else 0.8,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(skill)})
 func _push_combat_fx(fx: Dictionary) -> void:
+	# Bound large bursts independently so a full board remains readable on mobile.
+	if not str(fx.get("skill","")).is_empty():
+		var skill_count: int = 0
+		var oldest: int = -1
+		for i in range(combat_fx.size()):
+			if not str(combat_fx[i].get("skill","")).is_empty():
+				skill_count += 1
+				if oldest<0: oldest=i
+		if skill_count>=24 and oldest>=0: combat_fx.remove_at(oldest)
 	if combat_fx.size() >= 96: combat_fx.pop_front()
 	combat_fx.append(fx)
 
@@ -2176,6 +2196,19 @@ func _ensure_aura_cache() -> void:
 	if signature == _aura_signature and _cached_auras.size() == dogs.size():
 		return
 	_aura_signature = signature
+	var present: Dictionary = {}
+	for dog in dogs:
+		var kind: int = int(dog["kind"])
+		present[kind] = true
+		if _aura_present.has(kind): continue
+		_aura_present[kind] = true
+		for skill in DOG_SKILLS.get(kind,[]):
+			if not str(skill).ends_with("_aura"): continue
+			_sound(GameAudio.skill_sound(str(skill)))
+			if visual_effects_enabled:
+				var point: Vector2 = _cell_center(int(dog["cell"]))
+				_push_combat_fx({"from":point,"to":point,"style":"nature","age":0.0,"duration":1.1,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(str(skill))})
+	_aura_present = present
 	_cached_auras.clear()
 	for i in range(dogs.size()):
 		_cached_auras.append(_effective_auras(i))

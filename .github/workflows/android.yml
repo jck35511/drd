@@ -45,6 +45,10 @@ jobs:
         run: xvfb-run -a godot --path game --rendering-method gl_compatibility --script res://tests/capture_accessibility.gd
       - name: Capture elite combat, boss deadline and all unit textures
         run: xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_elite_boss.gd
+      - name: Capture attack animation clips and all skill effects
+        run: |
+          xvfb-run -a godot --audio-driver Dummy --path game --rendering-method gl_compatibility --script res://tests/capture_attack_showcase.gd
+          ffmpeg -y -framerate 30 -i game/previews/motion-frame-%02d.png -vf "tpad=stop_mode=clone:stop_duration=0.3" -c:v libx264 -pix_fmt yuv420p game/previews/attack-motion-demo.mp4
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,10 +100,10 @@ jobs:
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.2-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.2-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.2-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-0.29.2-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.3-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.3-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.3-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.29.3-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -117,8 +121,8 @@ jobs:
       - name: Upload APK separately for phone installation
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.29.2-APK
-          path: build/MeongRandy-0.29.2-debug.apk
+          name: MeongRandy-0.29.3-APK
+          path: build/MeongRandy-0.29.3-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"

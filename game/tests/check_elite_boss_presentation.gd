@@ -19,7 +19,8 @@ func run() -> void:
 		assert(g.attack_vectors.has(0),"Elite must have a directional attack motion")
 		assert(g.combat_fx.size()>0 and g.combat_fx[0]["style"]==g.ELITE_STYLES[kind-36])
 		assert(g.game_audio.sounds.has(g._attack_sound(kind)))
-		assert(g.game_audio.sounds.has("skill_"+g.ELITE_STYLES[kind-36]))
+		for skill in g.DOG_SKILLS[kind]:
+			assert(g.game_audio.sounds.has(g.GameAudio.skill_sound(skill)))
 		var proc_seen: bool = false
 		g.rng.seed = 48000+kind
 		for attempt in range(100):

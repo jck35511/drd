@@ -1,4 +1,7 @@
 extends Node
+const SKILL_SOUNDS := ["crit","bleed","stun","slow","multi","armor","splash","heavy","area_stun","hp_percent","magic_splash","magic_res","freeze","chain","burn","vulnerable","poison","attack_aura","speed_aura","magic_aura","cooldown_aura"]
+static func skill_sound(skill: String) -> String:
+	return "skill_"+skill
 const SETTINGS_PATH: String = "user://audio_settings.cfg"
 var levels: Dictionary = {"master":0.8,"music":0.35,"sfx":0.7}
 var music: AudioStreamPlayer
@@ -39,7 +42,7 @@ func _ready() -> void:
 	var names: Array[String] = ["ui","summon","attack","magic","craft","coin","wave","boss","victory","defeat"]
 	for style in ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]:
 		names.append("attack_"+style)
-		names.append("skill_"+style)
+	for skill in SKILL_SOUNDS: names.append(skill_sound(skill))
 	for name in names:
 		var path: String = "res://audio/" + name + ".wav"
 		if ResourceLoader.exists(path): sounds[name] = load(path)
@@ -70,7 +73,7 @@ func play_effect(name: String) -> void:
 	if not sounds.has(name) or voices.is_empty(): return
 	if float(levels["master"]) <= 0.0 or float(levels["sfx"]) <= 0.0: return
 	var now: int = Time.get_ticks_msec()
-	var interval: int = 180 if name.begins_with("attack_") else 260 if name.begins_with("skill_") else 130 if name in ["attack","magic"] else 80
+	var interval: int = 180 if name.begins_with("attack_") else 120 if name.begins_with("skill_") else 130 if name in ["attack","magic"] else 80
 	if now-int(last_played.get(name,-10000)) < interval: return
 	last_played[name] = now
 	var voice: AudioStreamPlayer = null
@@ -88,7 +91,7 @@ func play_effect(name: String) -> void:
 	voice.set_meta("priority",priority)
 	voice.set_meta("started",now)
 	voice.stream = sounds[name]
-	voice.volume_db = -12.0 if name in ["attack","magic"] else -6.0 if name.begins_with("attack_") else -2.0 if name.begins_with("skill_") else -5.0
+	voice.volume_db = -9.0 if name in ["attack","magic"] else -6.0 if name.begins_with("attack_") else -3.0 if name.begins_with("skill_") else -5.0
 	voice.play()
 func set_backgrounded(value: bool) -> void:
 	backgrounded = value
