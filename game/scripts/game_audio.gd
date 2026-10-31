@@ -78,9 +78,15 @@ func play_effect(name: String) -> void:
 		if not candidate.playing:
 			voice = candidate
 			break
+	var priority: int = 3 if name in ["boss","victory","defeat"] else 2 if name.begins_with("skill_") else 1 if name.begins_with("attack_") else 0
 	if voice == null:
-		if name in ["attack","magic","coin"]: return
-		voice = voices[0]
+		for candidate in voices:
+			if int(candidate.get_meta("priority",0)) > priority: continue
+			if voice == null or int(candidate.get_meta("started",0)) < int(voice.get_meta("started",0)):
+				voice = candidate
+		if voice == null: return
+	voice.set_meta("priority",priority)
+	voice.set_meta("started",now)
 	voice.stream = sounds[name]
 	voice.volume_db = -12.0 if name in ["attack","magic"] else -6.0 if name.begins_with("attack_") else -2.0 if name.begins_with("skill_") else -5.0
 	voice.play()

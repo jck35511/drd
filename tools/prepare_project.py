@@ -28,3 +28,6 @@ if not license_path.exists():
 # Generate original offline music and effects for source and APK.
 import subprocess, sys
 subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "generate_audio.py")], check=True)
+
+# Compute isolated integer UV regions; original artwork remains untouched.
+subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "inspect_sprite_regions.py")], check=True)

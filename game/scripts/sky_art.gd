@@ -2,10 +2,14 @@ extends RefCounted
 # Shared atlases: 49 independent hero illustrations, four regular enemies, eight bosses.
 var atlases: Array[Texture2D] = []
 var regions: Array[Texture2D] = []
+var region_manifest: Array = []
 
 func load_atlases() -> void:
 	if not atlases.is_empty():
 		return
+	if FileAccess.file_exists("res://assets/unit_regions.json"):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/unit_regions.json"))
+		if parsed is Array: region_manifest = parsed
 	for sheet in range(8):
 		var path := "res://assets/sky_atlas_%d.png" % sheet
 		var texture: Texture2D = null
@@ -23,7 +27,14 @@ func load_atlases() -> void:
 			var region := AtlasTexture.new()
 			region.atlas = texture
 			var dimensions := Vector2(float(texture.get_width()) / 4.0, float(texture.get_height()) / 2.0)
-			region.region = Rect2(Vector2(slot % 4, int(slot / 4)) * dimensions, dimensions)
+			var index: int = sheet*8+slot
+			if region_manifest.size() > index:
+				var bounds: Array = region_manifest[index]["rect"]
+				region.region = Rect2(float(bounds[0]),float(bounds[1]),float(bounds[2]),float(bounds[3]))
+				# Virtual transparent padding prevents outlines touching the icon frame.
+				region.margin = Rect2(6,6,12,12)
+			else:
+				region.region = Rect2(Vector2(slot % 4, int(slot / 4)) * dimensions, dimensions)
 			region.filter_clip = true
 			regions.append(region)
 

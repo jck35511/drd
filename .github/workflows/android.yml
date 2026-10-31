@@ -20,7 +20,6 @@ jobs:
         run: |
           python3 -m pip install Pillow numpy scipy
           python3 tools/audit_atlases.py
-          python3 tools/inspect_sprite_regions.py
       - name: Prepare editable project
         run: python3 tools/prepare_project.py
       - name: Install Godot and display support
@@ -77,6 +76,7 @@ jobs:
           key: meongrandy-debug-signing-v1
       - name: Prepare project and export dependencies
         run: |
+          python3 -m pip install Pillow numpy scipy
           python3 tools/prepare_project.py
           mkdir -p work build
           curl --fail --location --retry 3 "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -o work/godot.zip

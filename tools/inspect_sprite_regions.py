@@ -47,7 +47,30 @@ for sheet in range(8):
         ids=[p[1] for p in parts]
         window=labels[y0:y1,x0:x1]
         foreign=int(np.count_nonzero((window>0)&~np.isin(window,ids)&(sizes[window]>=12)))
-        entry={"id":sheet*8+slot,"sheet":sheet,"rect":[x0,y0,x1-x0,y1-y0],"parts":len(parts),"foreign_pixels":foreign,"primary_rect":[primary[2][1].start,primary[2][0].start,primary[2][1].stop-primary[2][1].start,primary[2][0].stop-primary[2][0].start]}
+        original_count=int(np.count_nonzero(np.isin(window,ids)))
+        # Tighten only edges invaded by a different silhouette. Keep the source PNG untouched.
+        for attempt in range(8):
+            window=labels[y0:y1,x0:x1]
+            other=[int(v) for v in np.unique(window) if v and v not in ids and sizes[v]>=12]
+            if not other: break
+            improved=False
+            for unwanted in other:
+                yy_bad,xx_bad=np.where(window==unwanted)
+                if not len(xx_bad): continue
+                candidates=[(x0+int(xx_bad.max())+1,y0,x1,y1),(x0,y0,x0+int(xx_bad.min()),y1),(x0,y0+int(yy_bad.max())+1,x1,y1),(x0,y0,x1,y0+int(yy_bad.min()))]
+                candidates=[b for b in candidates if b[2]>b[0] and b[3]>b[1]]
+                if not candidates: continue
+                def retained(b): return int(np.count_nonzero(np.isin(labels[b[1]:b[3],b[0]:b[2]],ids)))
+                best=max(candidates,key=retained)
+                if retained(best)>=original_count*0.97:
+                    x0,y0,x1,y1=best
+                    window=labels[y0:y1,x0:x1]
+                    improved=True
+            if not improved: break
+        window=labels[y0:y1,x0:x1]
+        foreign=int(np.count_nonzero((window>0)&~np.isin(window,ids)&(sizes[window]>=12)))
+        retained_count=int(np.count_nonzero(np.isin(window,ids)))
+        entry={"retained_fraction":round(retained_count/original_count,6),"id":sheet*8+slot,"sheet":sheet,"rect":[x0,y0,x1-x0,y1-y0],"parts":len(parts),"foreign_pixels":foreign,"primary_rect":[primary[2][1].start,primary[2][0].start,primary[2][1].stop-primary[2][1].start,primary[2][0].stop-primary[2][0].start]}
         regions.append(entry)
         print("SPRITE_REGION:"+json.dumps(entry))
 Path("game/assets/unit_regions.json").write_text(json.dumps(regions),encoding="utf-8")
