@@ -85,12 +85,27 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 		var cell: int = int(dog["cell"])
 		var center: Vector2 = game._cell_center(cell)
 		var elapsed: float = game.presentation_clock - float(game.attack_flashes.get(cell, -10.0))
-		var pulse: float = maxf(0.0, 1.0 - elapsed / 0.18)
+		var progress: float = clampf(elapsed / (0.36 if kind >= 36 else 0.2),0.0,1.0)
+		var pulse: float = sin(progress * PI)
+		var aim: Vector2 = game.attack_vectors.get(cell,Vector2.UP)
+		var lunge: float = 12.0 if kind >= 36 and kind < 42 else 7.0
+		var skill_elapsed: float = game.presentation_clock - float(game.skill_flashes.get(cell,-10.0))
 		canvas.draw_circle(center + Vector2(0, 22), 22.0, Color(0.1, 0.15, 0.3, 0.18))
 		if kind >= 36:
 			var ring := Color("#e7be4c") if kind < 42 else Color("#56bfee") if kind < 46 else Color("#ba76f4")
 			canvas.draw_arc(center, 29.0, 0.0, TAU, 36, ring, 1.5, true)
-		draw_character(canvas, unit_texture(kind), center + Vector2(0, -pulse * 4.0), 65.0 + pulse * 3.0)
+		if kind >= 36:
+			var rune_color: Color = effect_color(ELITE_STYLES[kind-36])
+			if DOG_HAS_AURA.has(kind):
+				rune_color.a = 0.35 + 0.15 * sin(game.presentation_clock*2.0)
+				canvas.draw_arc(center,26.0,game.presentation_clock,game.presentation_clock+TAU*0.8,32,rune_color,2.0,true)
+			if skill_elapsed >= 0.0 and skill_elapsed < 0.7:
+				rune_color.a = 1.0-skill_elapsed/0.7
+				canvas.draw_arc(center,24.0+skill_elapsed*24.0,0.0,TAU,40,rune_color,3.0,true)
+		# Visible anticipation/lunge/recovery; the combat position and range never move.
+		canvas.draw_set_transform(center + aim*pulse*lunge + Vector2(0,-pulse*4.0),aim.x*pulse*0.10,Vector2(1.0+pulse*0.10,1.0-pulse*0.05))
+		draw_character(canvas, unit_texture(kind), Vector2.ZERO, 65.0)
+		canvas.draw_set_transform(Vector2.ZERO)
 		if game.selected == i:
 			canvas.draw_arc(center, 33.0, 0.0, TAU, 36, Color("#f7bd3e"), 3.0, true)
 	for enemy in game.enemies:
@@ -114,37 +129,95 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 		canvas.draw_rect(bar, Color("#28314b"))
 		canvas.draw_rect(Rect2(bar.position, Vector2(width * clampf(float(enemy["hp"]) / maxf(1.0, float(enemy["max_hp"])), 0.0, 1.0), 4)), Color("#f37b9f") if is_boss else Color("#f0a58a"))
 	for fx in game.combat_fx:
-		_draw_effect(canvas, fx)
+		_draw_effect(canvas, fx, game)
 	if game.paused:
 		canvas.draw_rect(Rect2(65, 135, 590, 580), Color(0.08, 0.12, 0.25, 0.25))
 
-func _draw_effect(canvas: CanvasItem, fx: Dictionary) -> void:
-	var progress: float = clampf(float(fx["age"]) / float(fx["duration"]), 0.0, 1.0)
+
+const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
+const DOG_HAS_AURA := [38,43,45,47,48]
+func effect_color(style: String) -> Color:
+	var colors: Dictionary = {"roar":"#ffca57","claw":"#ff8753","fang":"#bad9ff","shadow":"#c29cff","wind":"#d1ffb0","spirit":"#ff9fdd","ice":"#8cffff","sun":"#fff18b","lightning":"#b5d4ff","nature":"#8dffb9","abyss":"#d489ff","heaven":"#fff4bb","hell":"#ff6e6e","bolt":"#ffe3a0"}
+	return Color(colors.get(style,"#d4beff"))
+func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
+	var p: float = clampf(float(fx["age"]) / float(fx["duration"]),0.0,1.0)
 	var origin: Vector2 = fx["from"]
 	var target: Vector2 = fx["to"]
 	var style: String = fx["style"]
-	var color := Color("#ffe3a0")
-	if style == "ice": color = Color("#8be9ff")
-	elif style == "lightning": color = Color("#87bdff")
-	elif style == "hell": color = Color("#e68afe")
-	elif style == "poison": color = Color("#abef89")
-	elif style == "magic": color = Color("#c0b4ff")
-	color.a = 1.0 - progress
-	if style == "lightning":
+	var skill: String = str(fx.get("skill",""))
+	var special: bool = not skill.is_empty()
+	var power: float = 1.6 if special else 1.0
+	var color: Color = effect_color(style)
+	color.a = minf(1.0,(1.0-p)*1.7)
+	var radius: float = (14.0+p*27.0)*power
+	var shot: Vector2 = origin.lerp(target,minf(1.0,p*3.0))
+	var white := Color(1,1,1,color.a*0.85)
+	if style == "bolt":
+		canvas.draw_circle(shot,3.5,color)
+		return
+	# A bright core and trail make every elite's ordinary attack readable.
+	if not special:
+		canvas.draw_line(shot,origin.lerp(target,maxf(0.0,p*3.0-0.22)),color,4.0,true)
+		canvas.draw_circle(shot,5.0,color)
+		canvas.draw_circle(shot,2.0,white)
+	if style == "claw" or style == "wind":
+		for i in range(3):
+			var offset := Vector2(float(i-1)*12.0,-float(i-1)*5.0)
+			canvas.draw_arc(target+offset,radius*0.7,-PI*0.85+p*0.4,PI*0.2+p*0.4,20,color,3.5*power,true)
+	elif style == "fang":
+		for side in [-1,1]:
+			var points := PackedVector2Array([target+Vector2(-radius,side*radius*0.5),target+Vector2(-radius*0.3,side*4),target+Vector2(0,side*radius*0.35),target+Vector2(radius*0.3,side*4),target+Vector2(radius,side*radius*0.5)])
+			canvas.draw_polyline(points,color,3.0*power,true)
+	elif style == "lightning":
 		var points := PackedVector2Array()
-		for i in range(7):
-			var q: Vector2 = origin.lerp(target, float(i) / 6.0)
-			if i > 0 and i < 6: q += Vector2(0, (1 if i % 2 == 0 else -1) * 8)
+		for i in range(9):
+			var q: Vector2 = origin.lerp(target,float(i)/8.0)
+			if i > 0 and i < 8: q += Vector2(0,(1.0 if i%2==0 else -1.0)*11.0*power)
 			points.append(q)
-		canvas.draw_polyline(points, color, 2.5, true)
-	elif style == "sun":
-		canvas.draw_line(target + Vector2(0, -65), target, color, 4.0, true)
-		canvas.draw_arc(target, 12 + progress * 30, 0.0, TAU, 32, color, 2.0, true)
-	else:
-		var shot: Vector2 = origin.lerp(target, minf(1.0, progress * 2.0))
-		canvas.draw_circle(shot, 3.0 if style == "bolt" else 5.0, color)
-		if progress > 0.45:
-			for i in range(5):
-				var angle: float = TAU * float(i) / 5.0
-				var ray := Vector2(cos(angle), sin(angle))
-				canvas.draw_line(target + ray * 6, target + ray * (9 + progress * 16), color, 2.0, true)
+		canvas.draw_polyline(points,color,6.0*power,true)
+		canvas.draw_polyline(points,white,2.0,true)
+	elif style == "ice":
+		for i in range(6):
+			var angle: float = TAU*float(i)/6.0
+			var ray := Vector2(cos(angle),sin(angle))
+			var side := Vector2(-ray.y,ray.x)
+			var crystal := PackedVector2Array([target+ray*radius,target+ray*radius*0.45+side*5*power,target+ray*6,target+ray*radius*0.45-side*5*power])
+			canvas.draw_colored_polygon(crystal,Color(color,color.a*0.65))
+			canvas.draw_polyline(crystal,color,2.0,true)
+	elif style == "sun" or style == "heaven":
+		var beam_from: Vector2 = target + Vector2(0,-100.0*power)
+		canvas.draw_line(beam_from,target,Color(color,color.a*0.25),22.0*power,true)
+		canvas.draw_line(beam_from,target,white,5.0*power,true)
+		canvas.draw_arc(target,radius,0,TAU,40,color,3.0,true)
+		for i in range(8):
+			var ray := Vector2.from_angle(TAU*i/8.0+p)
+			canvas.draw_line(target+ray*radius*0.55,target+ray*radius,color,2.5,true)
+	elif style == "hell":
+		for i in range(3):
+			var base: Vector2 = target+Vector2((i-1)*23.0,8.0)
+			var flame := PackedVector2Array([base+Vector2(-10,0),base+Vector2(-6,-radius),base+Vector2(3,-radius*1.7),base+Vector2(11,0)])
+			canvas.draw_colored_polygon(flame,Color(color,color.a*0.55))
+			canvas.draw_line(base,base+Vector2(0,-radius*1.1),white,3.0,true)
+	elif style == "abyss" or style == "shadow":
+		canvas.draw_circle(target,radius*0.65,Color(0.12,0.02,0.20,color.a*0.55))
+		for i in range(3):
+			canvas.draw_arc(target,radius*(0.5+i*0.25),p*6+i*2,p*6+i*2+PI,24,color,3.0,true)
+	elif style == "spirit" or style == "nature":
+		for i in range(3):
+			var angle: float = p*5+TAU*float(i)/3.0
+			var orb: Vector2 = target+Vector2.from_angle(angle)*radius
+			canvas.draw_circle(orb,6.0*power,color)
+			canvas.draw_arc(target,radius,angle-0.7,angle,12,white,2.0,true)
+		if style == "nature":
+			canvas.draw_arc(target,radius*0.6,0,TAU,32,color,2.5,true)
+	else: # Lion shockwave.
+		for i in range(2):
+			canvas.draw_arc(target,radius+float(i)*10.0,0,TAU,40,color,3.0*power,true)
+	if special and p < 0.85:
+		var label: String = str(game.SKILL_NAMES.get(skill,skill))
+		var font: Font = game.ui_theme.default_font
+		var pos: Vector2 = target+Vector2(-35,-46-p*12)
+		pos.x = clampf(pos.x,12,590)
+		pos.y = maxf(100.0,pos.y)
+		canvas.draw_string_outline(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,4,Color(0.06,0.08,0.16,color.a))
+		canvas.draw_string(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,white)

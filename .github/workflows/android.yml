@@ -93,10 +93,10 @@ jobs:
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.1-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.1-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.1-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-0.29.1-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.2-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.2-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.2-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.29.2-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -114,8 +114,8 @@ jobs:
       - name: Upload APK separately for phone installation
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.29.1-APK
-          path: build/MeongRandy-0.29.1-debug.apk
+          name: MeongRandy-0.29.2-APK
+          path: build/MeongRandy-0.29.2-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"

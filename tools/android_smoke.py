@@ -23,7 +23,7 @@ packages = adb("shell","pm","list","packages").decode()
 for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
     if ("package:" + stock_app + "\n") in packages:
         adb("shell","pm","disable-user","--user","0",stock_app)
-adb("install", "-r", "build/MeongRandy-0.29.1-debug.apk")
+adb("install", "-r", "build/MeongRandy-0.29.2-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")

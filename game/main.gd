@@ -18,6 +18,11 @@ var _in_simulation: bool = false
 var pause_button: Button
 var sky_art = SkyArt.new()
 var attack_flashes: Dictionary = {}
+var attack_vectors: Dictionary = {}
+var skill_flashes: Dictionary = {}
+var boss_hud: PanelContainer
+var boss_countdown: Label
+var boss_clock_bar: ProgressBar
 var unit_gallery: PanelContainer
 var _aura_signature: String = ""
 var _cached_auras: Array[Dictionary] = []
@@ -452,6 +457,7 @@ func _build_ui() -> void:
 	settings_button = _make_button("⚙", Vector2(641, 10), Vector2(69, 59), _toggle_settings)
 	settings_button.add_theme_font_size_override("font_size", 26)
 	_build_settings_panel()
+	_build_boss_hud()
 	fusion_button = _make_button("✦ 선택 유닛 조합", Vector2(22, 1083), Vector2(320, 57), _fuse_selected)
 	recipe_button = _make_button("📖 조합 도감", Vector2(360, 1083), Vector2(335, 57), _toggle_recipes)
 	_build_recipe_panel()
@@ -1196,24 +1202,32 @@ func _attack_beast(dog_index: int, target: int, auras: Dictionary) -> void:
 	var skills: Array = DOG_SKILLS.get(kind, [])
 	var damage: float = float(ATTACK[kind]) * _tier_damage_scale(kind) * (1.0 + float(auras["damage"]))
 	if skills.has("heavy") and rng.randf() < float(BEAST_CHANCE["heavy"]):
+		_emit_skill_visual(dog_index, target, "heavy")
 		damage *= float(BEAST_POWER["heavy"])
 	if skills.has("crit") and rng.randf() < float(BEAST_CHANCE["crit"]):
+		_emit_skill_visual(dog_index, target, "crit")
 		damage *= float(BEAST_POWER["crit"])
 	var magic_attack: bool = skills.has("magic_splash")
 	if magic_attack:
 		damage *= 1.0 + float(auras.get("magic", 0.0))
 	_hit_enemy(target, damage, magic_attack)
 	if skills.has("multi") and rng.randf() < float(BEAST_CHANCE["multi"]):
+		_emit_skill_visual(dog_index, target, "multi")
 		_hit_enemy(target, damage * float(BEAST_POWER["multi"]))
 	if skills.has("bleed") and rng.randf() < float(BEAST_CHANCE["bleed"]):
+		_emit_skill_visual(dog_index, target, "bleed")
 		_apply_status(target, "bleed", BLEED_DURATION, float(ATTACK[kind]) * _tier_damage_scale(kind) * float(BEAST_POWER["bleed"]))
 	if skills.has("armor") and rng.randf() < float(BEAST_CHANCE["armor"]):
+		_emit_skill_visual(dog_index, target, "armor")
 		_apply_status(target, "armor", ARMOR_DURATION, float(BEAST_POWER["armor"]))
 	if skills.has("slow") and rng.randf() < float(BEAST_CHANCE["slow"]):
+		_emit_skill_visual(dog_index, target, "slow")
 		_apply_status(target, "slow", SLOW_DURATION, float(BEAST_POWER["slow"]))
 	if skills.has("magic_res") and rng.randf() < float(BEAST_CHANCE["magic_res"]):
+		_emit_skill_visual(dog_index, target, "magic_res")
 		_apply_status(target, "magic_res", ARMOR_DURATION, float(BEAST_POWER["magic_res"]))
 	if skills.has("hp_percent") and rng.randf() < float(BEAST_CHANCE["hp_percent"]):
+		_emit_skill_visual(dog_index, target, "hp_percent")
 		var max_hp: float = float(enemies[target]["max_hp"])
 		_hit_enemy(target, minf(max_hp * float(BEAST_POWER["hp_percent"]), BEAST_HP_BONUS_CAP))
 	if skills.has("splash") or skills.has("magic_splash") or skills.has("area_stun"):
@@ -1221,6 +1235,9 @@ func _attack_beast(dog_index: int, target: int, auras: Dictionary) -> void:
 		var splash_proc: bool = skills.has("splash") and rng.randf() < float(BEAST_CHANCE["splash"])
 		var magic_proc: bool = skills.has("magic_splash") and rng.randf() < float(BEAST_CHANCE["magic_splash"])
 		var stun_proc: bool = skills.has("area_stun") and rng.randf() < float(BEAST_CHANCE["area_stun"])
+		if splash_proc: _emit_skill_visual(dog_index, target, "splash")
+		if magic_proc: _emit_skill_visual(dog_index, target, "magic_splash")
+		if stun_proc: _emit_skill_visual(dog_index, target, "area_stun")
 		for i in range(enemies.size()):
 			if float(enemies[i]["hp"]) <= 0.0:
 				continue
@@ -1246,22 +1263,30 @@ func _attack_mythic(dog_index: int, target: int, auras: Dictionary) -> void:
 		damage *= 1.0 + float(auras.get("magic", 0.0))
 	_hit_enemy(target, damage, is_magic)
 	if skills.has("armor") and rng.randf() < float(MYTHIC_CHANCE["armor"]):
+		_emit_skill_visual(dog_index, target, "armor")
 		_apply_status(target, "armor", ARMOR_DURATION, float(MYTHIC_POWER["armor"]))
 	if skills.has("magic_res") and rng.randf() < float(MYTHIC_CHANCE["magic_res"]):
+		_emit_skill_visual(dog_index, target, "magic_res")
 		_apply_status(target, "magic_res", ARMOR_DURATION, float(MYTHIC_POWER["magic_res"]))
 	if skills.has("slow") and rng.randf() < float(MYTHIC_CHANCE["slow"]):
+		_emit_skill_visual(dog_index, target, "slow")
 		_apply_status(target, "slow", SLOW_DURATION, float(MYTHIC_POWER["slow"]))
 	if skills.has("freeze") and rng.randf() < float(MYTHIC_CHANCE["freeze"]):
+		_emit_skill_visual(dog_index, target, "freeze")
 		_apply_status(target, "freeze", float(MYTHIC_POWER["freeze"]))
 	if skills.has("stun") and rng.randf() < float(MYTHIC_CHANCE["stun"]):
+		_emit_skill_visual(dog_index, target, "stun")
 		_apply_status(target, "stun", float(MYTHIC_POWER["stun"]))
 	if skills.has("burn") and rng.randf() < float(MYTHIC_CHANCE["burn"]):
+		_emit_skill_visual(dog_index, target, "burn")
 		_apply_status(target, "burn", MYTHIC_BURN_DURATION, damage * float(MYTHIC_POWER["burn"]))
 	if skills.has("vulnerable") and rng.randf() < float(MYTHIC_CHANCE["vulnerable"]):
+		_emit_skill_visual(dog_index, target, "vulnerable")
 		_apply_status(target, "vulnerable", MYTHIC_VULNERABLE_DURATION, float(MYTHIC_POWER["vulnerable"]))
 	if skills.has("splash") or skills.has("magic_splash"):
 		var proc: bool = (skills.has("splash") and rng.randf() < float(MYTHIC_CHANCE["splash"])) or (skills.has("magic_splash") and rng.randf() < float(MYTHIC_CHANCE["magic_splash"]))
 		if proc:
+			_emit_skill_visual(dog_index, target, "magic_splash" if skills.has("magic_splash") else "splash")
 			var impact: Vector2 = _route_point(float(enemies[target]["progress"]))
 			for other_idx in range(enemies.size()):
 				if other_idx == target or float(enemies[other_idx]["hp"]) <= 0.0:
@@ -1269,6 +1294,7 @@ func _attack_mythic(dog_index: int, target: int, auras: Dictionary) -> void:
 				if impact.distance_to(_route_point(float(enemies[other_idx]["progress"]))) <= MYTHIC_SPLASH_RADIUS:
 					_hit_enemy(other_idx, damage * float(MYTHIC_POWER["magic_splash"] if skills.has("magic_splash") else MYTHIC_POWER["splash"]), skills.has("magic_splash"))
 	if skills.has("chain") and rng.randf() < float(MYTHIC_CHANCE["chain"]):
+		_emit_skill_visual(dog_index, target, "chain")
 		var impact: Vector2 = _route_point(float(enemies[target]["progress"]))
 		var nearby: Array[Dictionary] = []
 		for i in range(enemies.size()):
@@ -1279,6 +1305,7 @@ func _attack_mythic(dog_index: int, target: int, auras: Dictionary) -> void:
 				nearby.append({"index": i, "distance": distance})
 		nearby.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a["distance"]) < float(b["distance"]))
 		for i in range(mini(nearby.size(), MYTHIC_CHAIN_TARGETS)):
+			_emit_skill_visual(dog_index, int(nearby[i]["index"]), "chain")
 			_hit_enemy(int(nearby[i]["index"]), damage * float(MYTHIC_POWER["chain"]), true)
 
 # Step12: true transcendent combat, four independent effects per unit.
@@ -1292,24 +1319,32 @@ func _attack_transcendent(dog_index: int, target: int, auras: Dictionary) -> voi
 	if is_magic:
 		damage *= 1.0 + float(auras.get("magic", 0.0))
 	if skills.has("heavy") and rng.randf() < float(TRANSCENDENT_CHANCE["heavy"]):
+		_emit_skill_visual(dog_index, target, "heavy")
 		damage *= float(TRANSCENDENT_POWER["heavy"])
 	_hit_enemy(target, damage, is_magic)
 	if skills.has("armor") and rng.randf() < float(TRANSCENDENT_CHANCE["armor"]):
+		_emit_skill_visual(dog_index, target, "armor")
 		_apply_status(target, "armor", ARMOR_DURATION, float(TRANSCENDENT_POWER["armor"]))
 	if skills.has("poison") and rng.randf() < float(TRANSCENDENT_CHANCE["poison"]):
+		_emit_skill_visual(dog_index, target, "poison")
 		_apply_status(target, "poison", TRANSCENDENT_DOT_DURATION, float(ATTACK[kind]) * _tier_damage_scale(kind) * float(TRANSCENDENT_POWER["poison"]))
 	if skills.has("hp_percent") and rng.randf() < float(TRANSCENDENT_CHANCE["hp_percent"]):
+		_emit_skill_visual(dog_index, target, "hp_percent")
 		var bonus: float = minf(float(enemies[target]["max_hp"]) * float(TRANSCENDENT_POWER["hp_percent"]), TRANSCENDENT_HP_BONUS_CAP)
 		_hit_enemy(target, bonus)
 	if skills.has("burn") and rng.randf() < float(TRANSCENDENT_CHANCE["burn"]):
+		_emit_skill_visual(dog_index, target, "burn")
 		_apply_status(target, "burn", TRANSCENDENT_DOT_DURATION, damage * float(TRANSCENDENT_POWER["burn"]))
 	if skills.has("magic_res") and rng.randf() < float(TRANSCENDENT_CHANCE["magic_res"]):
+		_emit_skill_visual(dog_index, target, "magic_res")
 		_apply_status(target, "magic_res", ARMOR_DURATION, float(TRANSCENDENT_POWER["magic_res"]))
 	if skills.has("slow") and rng.randf() < float(TRANSCENDENT_CHANCE["slow"]):
+		_emit_skill_visual(dog_index, target, "slow")
 		_apply_status(target, "slow", SLOW_DURATION, float(TRANSCENDENT_POWER["slow"]))
 	var splash_proc: bool = skills.has("magic_splash") and rng.randf() < float(TRANSCENDENT_CHANCE["magic_splash"])
 	var stun_proc: bool = skills.has("area_stun") and rng.randf() < float(TRANSCENDENT_CHANCE["area_stun"])
 	if splash_proc or stun_proc:
+		_emit_skill_visual(dog_index, target, "magic_splash" if splash_proc else "area_stun")
 		var impact: Vector2 = _route_point(float(enemies[target]["progress"]))
 		for i in range(enemies.size()):
 			if float(enemies[i]["hp"]) <= 0.0:
@@ -1322,7 +1357,8 @@ func _attack_transcendent(dog_index: int, target: int, auras: Dictionary) -> voi
 				_apply_status(i, "stun", float(TRANSCENDENT_POWER["area_stun"]))
 
 func _attack_with_skills(dog_index: int, target: int, auras: Dictionary) -> void:
-	if dog_index >= 0 and dog_index < dogs.size(): _sound("magic" if _unit_is_magic(int(dogs[dog_index]["kind"])) else "attack")
+	if dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
+	_sound(_attack_sound(int(dogs[dog_index]["kind"])))
 	var kind: int = int(dogs[dog_index]["kind"])
 	_emit_attack_visual(dog_index, target)
 	var tier: String = GRADES[kind]
@@ -1455,6 +1491,8 @@ func _restart() -> void:
 	simulation_accumulator = 0.0
 	combat_fx.clear()
 	attack_flashes.clear()
+	attack_vectors.clear()
+	skill_flashes.clear()
 	if persistence_enabled:
 		RunStorage.clear_save()
 	game_speed = 1
@@ -1503,6 +1541,8 @@ func _restart() -> void:
 	_refresh()
 
 func _refresh() -> void:
+	_refresh_boss_hud()
+	if game_audio != null: game_audio.set_boss_mode(boss_running and not game_over and not victory)
 	if (game_over or victory) and not _last_end_sound:
 		_last_end_sound = true
 		_sound("victory" if victory else "defeat")
@@ -2085,9 +2125,9 @@ func _process(delta: float) -> void:
 				simulation_accumulator = 0.0
 				break
 		_in_simulation = false
-		presentation_clock += delta * float(game_speed)
+		presentation_clock += delta
 		for fx in combat_fx:
-			fx["age"] = float(fx["age"]) + delta * float(game_speed)
+			fx["age"] = float(fx["age"]) + delta
 		for i in range(combat_fx.size() - 1, -1, -1):
 			if float(combat_fx[i]["age"]) > float(combat_fx[i]["duration"]):
 				combat_fx.remove_at(i)
@@ -2102,22 +2142,30 @@ func _process(delta: float) -> void:
 		save_clock = 0.0
 		RunStorage.save(self)
 
+const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
+func _attack_sound(kind: int) -> String:
+	return "attack_" + ELITE_STYLES[kind-36] if kind >= 36 else ("magic" if _unit_is_magic(kind) else "attack")
 func _emit_attack_visual(dog_index: int, target: int) -> void:
-	if not visual_effects_enabled or target < 0 or target >= enemies.size():
-		return
+	if not visual_effects_enabled or dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
 	var dog: Dictionary = dogs[dog_index]
 	var kind: int = int(dog["kind"])
-	var style: String = "bolt"
-	if kind == 42: style = "ice"
-	elif kind == 44: style = "lightning"
-	elif kind == 47: style = "sun"
-	elif kind == 48: style = "hell"
-	elif kind == 46: style = "poison"
-	elif _unit_is_magic(kind): style = "magic"
+	var origin: Vector2 = _cell_center(int(dog["cell"]))
+	var destination: Vector2 = _route_point(float(enemies[target]["progress"]))
 	attack_flashes[int(dog["cell"])] = presentation_clock
-	if combat_fx.size() >= 96:
-		combat_fx.pop_front()
-	combat_fx.append({"from": _cell_center(int(dog["cell"])), "to": _route_point(float(enemies[target]["progress"])), "style": style, "age": 0.0, "duration": 0.3})
+	attack_vectors[int(dog["cell"])] = (destination-origin).normalized()
+	_push_combat_fx({"from":origin,"to":destination,"style":ELITE_STYLES[kind-36] if kind >= 36 else "bolt","age":0.0,"duration":0.46 if kind >= 36 else 0.3,"kind":kind,"skill":""})
+func _emit_skill_visual(dog_index: int, target: int, skill: String) -> void:
+	if dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
+	var dog: Dictionary = dogs[dog_index]
+	var kind: int = int(dog["kind"])
+	if kind < 36: return
+	_sound("skill_" + ELITE_STYLES[kind-36])
+	if not visual_effects_enabled: return
+	skill_flashes[int(dog["cell"])] = presentation_clock
+	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36],"age":0.0,"duration":0.85,"kind":kind,"skill":skill})
+func _push_combat_fx(fx: Dictionary) -> void:
+	if combat_fx.size() >= 96: combat_fx.pop_front()
+	combat_fx.append(fx)
 
 func _ensure_aura_cache() -> void:
 	var signature: String = ""
@@ -2225,3 +2273,34 @@ func _add_volume_controls(content: VBoxContainer) -> void:
 	note.text = "0%로 내리면 음소거 · 설정은 자동 저장됩니다."
 	note.add_theme_font_size_override("font_size",22)
 	content.add_child(note)
+
+func _build_boss_hud() -> void:
+	boss_hud = PanelContainer.new()
+	boss_hud.position = Vector2(95,744)
+	boss_hud.size = Vector2(530,102)
+	boss_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_hud.add_theme_stylebox_override("panel",_panel_box(Color("#251c39"),Color("#f4ad63"),3,12))
+	add_child(boss_hud)
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_hud.add_child(column)
+	boss_countdown = Label.new()
+	boss_countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_countdown.add_theme_font_size_override("font_size",30)
+	boss_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(boss_countdown)
+	boss_clock_bar = ProgressBar.new()
+	boss_clock_bar.custom_minimum_size = Vector2(480,12)
+	boss_clock_bar.max_value = BOSS_DURATION
+	boss_clock_bar.show_percentage = false
+	boss_clock_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(boss_clock_bar)
+	boss_hud.visible = false
+func _refresh_boss_hud() -> void:
+	if boss_hud == null: return
+	boss_hud.visible = boss_running and not game_over and not victory
+	if not boss_hud.visible: return
+	var time_left: float = maxf(0.0,wave_time_left)
+	boss_countdown.text = "보스 처치까지 %.1f초 · %s" % [time_left,"일시정지" if paused or settings_panel != null and settings_panel.visible else "%d배속" % game_speed]
+	boss_countdown.add_theme_color_override("font_color",Color("#ff8c8c") if time_left <= 10.0 else Color("#fff0bc"))
+	boss_clock_bar.value = time_left

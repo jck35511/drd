@@ -28,7 +28,7 @@ func run() -> void:
 	await process_frame
 	check(g.ui_theme.default_font is FontVariation,"weighted Korean font used")
 	check(g.ui_theme.default_font_size >= 24,"readable body font")
-	check(g.game_audio.sounds.size() == 10 and g.game_audio.music.stream != null,"music and ten sound effects packaged")
+	check(g.game_audio.sounds.size() == 36 and g.game_audio.music.stream != null,"music and ten sound effects packaged")
 	check(g.game_audio.music.stream.get_length() > 40.0,"full music loop generated")
 	g.game_audio.set_level("music",0.0)
 	check(AudioServer.is_bus_mute(AudioServer.get_bus_index("Music")),"zero music volume mutes only music bus")
