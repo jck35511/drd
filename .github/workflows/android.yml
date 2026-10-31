@@ -16,6 +16,10 @@ jobs:
       GODOT_VERSION: 4.5.1
     steps:
       - uses: actions/checkout@v4
+      - name: Inspect all atlas boundaries
+        run: |
+          python3 -m pip install Pillow
+          python3 tools/audit_atlases.py
       - name: Prepare editable project
         run: python3 tools/prepare_project.py
       - name: Install Godot and display support
