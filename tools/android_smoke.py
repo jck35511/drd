@@ -89,9 +89,11 @@ sfx_level = float(re.search(r"sfx=([0-9.]+)",audio_text).group(1))
 assert music_level == 0 and 0.45 < sfx_level < 0.75, f"Volume persistence: music={music_level}, sfx={sfx_level}"
 # Restore audible BGM before checking music transitions; mute persistence alone is insufficient.
 tap(675,40)
-time.sleep(0.3)
+time.sleep(1.0)
 rect=layout["music"]
 tap(round(rect["x"]+rect["width"]*0.35),round(rect["y"]+rect["height"]/2))
+time.sleep(0.6) # Let the slider commit the touch before Android BACK closes the popup.
+capture("11b-music-restored")
 adb("shell","input","keyevent","KEYCODE_BACK")
 time.sleep(1.5)
 def audio_runtime():
@@ -102,7 +104,14 @@ def audio_runtime():
         except json.JSONDecodeError: time.sleep(0.1)
     raise AssertionError("Runtime music telemetry unreadable")
 normal_audio=audio_runtime()
-assert not normal_audio["boss_mode"] and normal_audio["playing"] and normal_audio["volume"]["music"]>0
+# Debug telemetry updates once a second; wait for the committed slider value.
+for _ in range(10):
+    if normal_audio["volume"]["music"]>0: break
+    time.sleep(0.5)
+    normal_audio=audio_runtime()
+print("ANDROID_NORMAL_AUDIO:"+json.dumps(normal_audio))
+(OUT/"normal-audio.json").write_text(json.dumps(normal_audio,indent=2))
+assert not normal_audio["boss_mode"] and normal_audio["playing"] and normal_audio["volume"]["music"]>0, json.dumps(normal_audio)
 assert normal_audio["track"].endswith("sky_theme.wav")
 
 
