@@ -11,6 +11,23 @@ func record(path: String) -> void:
 	var wav: AudioStreamWAV=recorder.get_recording()
 	assert(wav!=null and wav.data.size()>10000,"Runtime audio mixer produced no samples")
 	assert(wav.save_to_wav(path)==OK)
+func record_element(name: String) -> void:
+	# Saturate ordinary voices while an elemental tail is still playing.
+	for voice in player.voices: voice.stop()
+	recorder.set_recording_active(true)
+	player.play_effect("element_"+name)
+	var protected_voice: AudioStreamPlayer=player.voices[8]
+	assert(protected_voice.playing and protected_voice.stream==player.sounds["element_"+name])
+	var ordinary: Array[String]=["attack_roar","attack_claw","attack_fang","attack_shadow","attack_wind","attack_spirit","attack_sun","attack_nature","skill_crit","skill_multi","skill_armor"]
+	for sound in ordinary: player.play_effect(sound)
+	await create_timer(0.35).timeout
+	assert(protected_voice.playing and protected_voice.get_playback_position()>0.25,"Ordinary attacks cut off elemental sound")
+	await create_timer(2.1).timeout
+	recorder.set_recording_active(false)
+	var wav: AudioStreamWAV=recorder.get_recording()
+	assert(wav!=null and wav.data.size()>10000)
+	assert(wav.save_to_wav("res://previews/mixer-"+name+".wav")==OK)
+	print("ELEMENT_MIXER_PASS: "+name)
 func run() -> void:
 	player=Audio.new()
 	player.persist_settings=false
@@ -41,7 +58,11 @@ func run() -> void:
 	assert(not player.music.stream_paused and player.music.playing)
 	player.set_boss_mode(false)
 	assert(player.music.stream==player.music_tracks["sky_theme"])
+	player.music.stop()
+	await record_element("thunder")
+	await record_element("explosion")
 	AudioServer.remove_bus_effect(master,effect_index)
+	recorder=null
 	player.queue_free()
 	await process_frame
 	print("MUSIC_MIXER_PASS: normal, boss, repair, foreground, restoration")

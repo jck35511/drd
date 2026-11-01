@@ -32,7 +32,7 @@ func run() -> void:
 	var titles: Array[String]=["빙결의 펜리르","태양의 레오","뇌신의 백호","생명의 구미호","심연의 아몬","천공의 라","명계의 케르베로스"]
 	for i in range(7):
 		var card:=Control.new()
-		card.custom_minimum_size=Vector2(346,370)
+		card.custom_minimum_size=Vector2(346,285)
 		card.clip_contents=true
 		grid.add_child(card)
 		card.draw.connect(draw_motion.bind(card,kinds[i],titles[i]))

@@ -58,6 +58,14 @@ jobs:
         with:
           name: MeongRandy-0.29.4-motion-preview
           path: game/previews/attack-motion-demo.mp4
+      - name: Upload music and elemental sound samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeongRandy-0.29.4-audio-preview
+          path: |
+            game/previews/mixer-*.wav
+            game/audio/element_*.wav
+            game/audio/boss_theme.wav
       - name: Upload verification results
         if: always()
         uses: actions/upload-artifact@v4
