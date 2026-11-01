@@ -5,6 +5,8 @@ const SkillEffects = preload("res://scripts/skill_effects.gd")
 var atlases: Array[Texture2D] = []
 var regions: Array[Texture2D] = []
 var region_manifest: Array = []
+var legendary_frames: Array[Texture2D] = []
+var apparition_frames: Array[Texture2D] = []
 
 func load_atlases() -> void:
 	if not atlases.is_empty():
@@ -12,6 +14,7 @@ func load_atlases() -> void:
 	if FileAccess.file_exists("res://assets/unit_regions.json"):
 		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/unit_regions.json"))
 		if parsed is Array: region_manifest = parsed
+	_load_legendary_art()
 	for sheet in range(8):
 		var path := "res://assets/sky_atlas_%d.png" % sheet
 		var texture: Texture2D = null
@@ -101,7 +104,6 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 		var aim: Vector2 = game.attack_vectors.get(cell,Vector2.UP)
 		var duration: float = float(game.attack_durations.get(cell,0.6))
 		var phase: float = clampf(elapsed/maxf(0.01,duration),0.0,1.0)
-		var pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
 		var skill_elapsed: float = game.presentation_clock - float(game.skill_flashes.get(cell,-10.0))
 		canvas.draw_circle(center + Vector2(0, 22), 22.0, Color(0.1, 0.15, 0.3, 0.18))
 		if kind >= 36:
@@ -115,16 +117,7 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 			if skill_elapsed >= 0.0 and skill_elapsed < 0.7:
 				rune_color.a = 1.0-skill_elapsed/0.7
 				canvas.draw_arc(center,24.0+skill_elapsed*24.0,0.0,TAU,40,rune_color,3.0,true)
-		var motion_center: Vector2 = center + Vector2(pose["offset"])
-		var motion_color: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "bolt")
-		if phase>0.23 and phase<0.63 and AttackAnimator.clip_for(kind) in ["slash","pounce","cleave"]:
-			for echo in range(2,0,-1):
-				canvas.draw_set_transform(motion_center-aim*float(echo)*11,float(pose["rotation"])-float(echo)*0.06,pose["scale"])
-				draw_character(canvas,unit_texture(kind),Vector2.ZERO,65.0,Color(motion_color,0.14/float(echo)))
-		canvas.draw_set_transform(motion_center,float(pose["rotation"]),pose["scale"])
-		draw_character(canvas,unit_texture(kind),Vector2.ZERO,65.0)
-		canvas.draw_set_transform(Vector2.ZERO)
-		AttackAnimator.draw_weapon(canvas,motion_center,aim,pose,motion_color)
+		draw_unit_pose(canvas,kind,center,phase,aim)
 		if game.selected == i:
 			canvas.draw_arc(center, 33.0, 0.0, TAU, 36, Color("#f7bd3e"), 3.0, true)
 	for enemy in game.enemies:
@@ -180,6 +173,7 @@ func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
 		return
 	# A bright core and trail make every elite's ordinary attack readable.
 	if not special:
+		if int(fx.get("kind",-1))>=42: draw_legendary_projectile(canvas,fx)
 		canvas.draw_line(shot,origin.lerp(target,maxf(0.0,p*3.0-0.22)),color,4.0,true)
 		canvas.draw_circle(shot,5.0,color)
 		canvas.draw_circle(shot,2.0,white)
@@ -244,3 +238,73 @@ func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
 		pos.y = maxf(100.0,pos.y)
 		canvas.draw_string_outline(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,4,Color(0.06,0.08,0.16,color.a))
 		canvas.draw_string(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,white)
+
+func _load_legendary_art() -> void:
+	if not FileAccess.file_exists("res://assets/legendary_regions.json"): return
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/legendary_regions.json"))
+	for sheet in ["legendary_attack","legendary_vfx"]:
+		var texture: Texture2D = load("res://assets/"+sheet+".png")
+		for bounds in manifest[sheet]["regions"]:
+			var region := AtlasTexture.new()
+			region.atlas = texture
+			region.region = Rect2(float(bounds[0]),float(bounds[1]),float(bounds[2]),float(bounds[3]))
+			region.filter_clip = true
+			if sheet=="legendary_attack": legendary_frames.append(region)
+			else: apparition_frames.append(region)
+static func legendary_frame_index(phase: float) -> int:
+	if phase<0.12 or phase>=0.9: return 0
+	if phase<0.34: return 1
+	if phase<0.60: return 2
+	return 3
+func draw_unit_pose(canvas: CanvasItem, kind: int, center: Vector2, phase: float, aim: Vector2, height: float=65.0) -> void:
+	var pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
+	if kind>=42 and legendary_frames.size()==28:
+		var frame: int = legendary_frame_index(phase)
+		var offset: Vector2 = Vector2(pose["offset"])*0.25
+		canvas.draw_set_transform(center+offset,0.0,Vector2(-1.0 if aim.x< -0.1 else 1.0,1.0))
+		# These are separate painted anatomical poses, not rotations of the idle art.
+		draw_character(canvas,legendary_frames[(kind-42)*4+frame],Vector2.ZERO,height*1.20)
+		canvas.draw_set_transform(Vector2.ZERO)
+		return
+	var motion_center: Vector2 = center+Vector2(pose["offset"])
+	var tint: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "bolt")
+	if phase>0.23 and phase<0.63 and AttackAnimator.clip_for(kind) in ["slash","pounce","cleave"]:
+		for echo in range(2,0,-1):
+			canvas.draw_set_transform(motion_center-aim*float(echo)*11,float(pose["rotation"])-float(echo)*0.06,pose["scale"])
+			draw_character(canvas,unit_texture(kind),Vector2.ZERO,height,Color(tint,0.14/float(echo)))
+	canvas.draw_set_transform(motion_center,float(pose["rotation"]),pose["scale"])
+	draw_character(canvas,unit_texture(kind),Vector2.ZERO,height)
+	canvas.draw_set_transform(Vector2.ZERO)
+	AttackAnimator.draw_weapon(canvas,motion_center,aim,pose,tint)
+func _draw_apparition_texture(canvas: CanvasItem, index: int, point: Vector2, width: float, alpha: float, direction: Vector2) -> void:
+	if apparition_frames.size()<9: return
+	var texture: Texture2D = apparition_frames[index]
+	var height: float = width*texture.get_height()/maxf(1.0,float(texture.get_width()))
+	canvas.draw_set_transform(point,0.0,Vector2(-1.0 if direction.x< -0.1 else 1.0,1.0))
+	canvas.draw_texture_rect(texture,Rect2(Vector2(-width,-height)*0.5,Vector2(width,height)),false,Color(1,1,1,alpha))
+	canvas.draw_set_transform(Vector2.ZERO)
+func draw_legendary_projectile(canvas: CanvasItem, fx: Dictionary) -> void:
+	var kind: int = int(fx["kind"])
+	if kind<42: return
+	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
+	var origin: Vector2 = fx["from"]
+	var target: Vector2 = fx["to"]
+	var point: Vector2 = origin.lerp(target,minf(1.0,p*2.2))
+	_draw_apparition_texture(canvas,kind-42,point,66.0,0.85*(1.0-p),target-origin)
+func draw_legendary_skill(canvas: CanvasItem, fx: Dictionary) -> void:
+	var kind: int = int(fx.get("kind",-1))
+	if kind<42 or not bool(fx.get("apparition",false)): return
+	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
+	var origin: Vector2 = fx["from"]
+	var target: Vector2 = fx["to"]
+	var direction: Vector2 = (target-origin).normalized()
+	var point: Vector2 = origin.lerp(target,minf(1.0,p*2.5))
+	var width: float = (135.0 if kind<46 else 165.0)+sin(p*PI)*55.0
+	var opacity: float = minf(1.0,(1.0-p)*2.0)
+	# Painted animal/demon forms travel to the real impact point; layered trails fade behind.
+	for trail in range(2,0,-1):
+		_draw_apparition_texture(canvas,kind-42,point-direction*float(trail)*21.0,width*(1.0-float(trail)*0.09),opacity*0.16/float(trail),direction)
+	_draw_apparition_texture(canvas,kind-42,point,width,opacity,direction)
+	if p>0.35:
+		if kind==42: _draw_apparition_texture(canvas,7,target+Vector2(0,14),155.0,opacity*0.80,Vector2.RIGHT)
+		elif kind in [43,45,47,48]: _draw_apparition_texture(canvas,8,target+Vector2(0,12),145.0,opacity*0.55,Vector2.RIGHT)

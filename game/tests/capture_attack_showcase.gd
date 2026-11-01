@@ -7,19 +7,13 @@ var cards: Array[Control] = []
 func _initialize() -> void:
 	call_deferred("run")
 func draw_motion(card: Control, kind: int, title: String) -> void:
-	card.draw_rect(Rect2(0,0,346,370),Color("#18253c"))
+	card.draw_rect(Rect2(0,0,346,285),Color("#18253c"))
 	card.draw_string(game.ui_theme.default_font,Vector2(14,35),title,HORIZONTAL_ALIGNMENT_LEFT,-1,25,Color.WHITE)
 	var aim := Vector2(0.8,-0.6)
-	var pose: Dictionary = Animator.sample(kind,aim,phase)
-	var center: Vector2 = Vector2(170,235)+Vector2(pose["offset"])
-	var color: Color = game.sky_art.effect_color(game.ELITE_STYLES[kind-36])
-	card.draw_circle(Vector2(170,280),42,Color(0,0,0,0.25))
-	card.draw_set_transform(center,float(pose["rotation"]),pose["scale"])
-	game.sky_art.draw_character(card,game.sky_art.unit_texture(kind),Vector2.ZERO,115)
-	card.draw_set_transform(Vector2.ZERO)
-	Animator.draw_weapon(card,center,aim,pose,color)
+	card.draw_circle(Vector2(170,225),42,Color(0,0,0,0.25))
+	game.sky_art.draw_unit_pose(card,kind,Vector2(170,175),phase,aim,110.0)
 	var stage: String = "준비" if phase<0.22 else "타격" if phase<0.53 else "복귀"
-	card.draw_string(game.ui_theme.default_font,Vector2(14,345),stage,HORIZONTAL_ALIGNMENT_LEFT,-1,22,Color("#ffe09d"))
+	card.draw_string(game.ui_theme.default_font,Vector2(14,270),stage,HORIZONTAL_ALIGNMENT_LEFT,-1,22,Color("#ffe09d"))
 func run() -> void:
 	root.size=Vector2i(720,1280)
 	game=Game.new()
@@ -34,9 +28,9 @@ func run() -> void:
 	grid.add_theme_constant_override("h_separation",8)
 	grid.add_theme_constant_override("v_separation",12)
 	root.add_child(grid)
-	var kinds: Array[int]=[44,36,37,48,38,42]
-	var titles: Array[String]=["베기 · 백호","강타 · 사자","돌진 · 호랑이","물기 · 케르베로스","사격 · 늑대","시전 · 펜리르"]
-	for i in range(6):
+	var kinds: Array[int]=[42,43,44,45,46,47,48]
+	var titles: Array[String]=["빙결의 펜리르","태양의 레오","뇌신의 백호","생명의 구미호","심연의 아몬","천공의 라","명계의 케르베로스"]
+	for i in range(7):
 		var card:=Control.new()
 		card.custom_minimum_size=Vector2(346,370)
 		card.clip_contents=true
@@ -83,5 +77,5 @@ func run() -> void:
 func draw_skill(card: Control, skill: String) -> void:
 	card.draw_rect(Rect2(0,0,228,290),Color("#17243c"))
 	card.draw_string(game.ui_theme.default_font,Vector2(8,32),game.SKILL_NAMES[skill],HORIZONTAL_ALIGNMENT_LEFT,-1,21,Color.WHITE)
-	var fx: Dictionary={"from":Vector2(114,245),"to":Vector2(114,160),"style":"lightning","kind":44,"skill":skill,"age":0.35,"duration":1.1}
+	var fx: Dictionary={"from":Vector2(114,245),"to":Vector2(114,160),"style":"lightning","kind":42 if skill in ["slow","freeze"] else 47 if skill in ["burn","magic_splash"] else 46 if skill in ["heavy","poison"] else 44,"skill":skill,"age":0.35,"duration":1.1,"apparition":not skill.ends_with("_aura")}
 	game.sky_art._draw_effect(card,fx,game)

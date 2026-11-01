@@ -25,6 +25,7 @@ var skill_flashes: Dictionary = {}
 var boss_hud: PanelContainer
 var boss_countdown: Label
 var boss_clock_bar: ProgressBar
+var music_status_label: Label
 var unit_gallery: PanelContainer
 var _aura_signature: String = ""
 var _cached_auras: Array[Dictionary] = []
@@ -715,6 +716,11 @@ func _build_settings_panel() -> void:
 	speed_note.add_theme_color_override("font_color", Color("#344f7b"))
 	content.add_child(speed_note)
 	_add_volume_controls(content)
+	music_status_label=Label.new()
+	music_status_label.add_theme_font_size_override("font_size",20)
+	music_status_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+	music_status_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(music_status_label)
 	var restart := Button.new()
 	restart.text = "↻  다시하기 · 난이도 재선택"
 	restart.custom_minimum_size = Vector2(480, 80)
@@ -1008,12 +1014,13 @@ func _boss_stats(boss_number: int) -> Dictionary:
 	}
 
 func _start_boss_round() -> void:
-	_sound("boss")
 	if not boss_pending or boss_running or game_over or victory or not difficulty_confirmed:
 		return
 	boss_round = int(wave / BOSS_INTERVAL)
 	boss_pending = false
 	boss_running = true
+	if game_audio != null: game_audio.set_boss_mode(true)
+	_sound("boss")
 	wave_running = true
 	wave_time_left = BOSS_DURATION
 	spawn_clock = 0.0
@@ -1029,6 +1036,7 @@ func _complete_boss_round(defeated: bool) -> void:
 	if not boss_running:
 		return
 	boss_running = false
+	if game_audio != null: game_audio.set_boss_mode(false)
 	wave_running = false
 	wave_time_left = 0.0
 	spawn_left = 0
@@ -1553,6 +1561,7 @@ func _restart() -> void:
 
 func _refresh() -> void:
 	_refresh_boss_hud()
+	if music_status_label!=null and game_audio!=null: music_status_label.text="재생 음악: "+game_audio.track_label()
 	if game_audio != null: game_audio.set_boss_mode(boss_running and not game_over and not victory)
 	if (game_over or victory) and not _last_end_sound:
 		_last_end_sound = true
@@ -2157,6 +2166,9 @@ func _process(delta: float) -> void:
 
 const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
 func _attack_sound(kind: int) -> String:
+	if kind==44: return "element_thunder"
+	if kind==47: return "element_explosion"
+	if kind==42: return "element_ice"
 	return "attack_" + ELITE_STYLES[kind-36] if kind >= 36 else ("magic" if _unit_is_magic(kind) else "attack")
 func _emit_attack_visual(dog_index: int, target: int) -> void:
 	if not visual_effects_enabled or dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
@@ -2174,11 +2186,15 @@ func _emit_skill_visual(dog_index: int, target: int, skill: String) -> void:
 	if dog_index < 0 or dog_index >= dogs.size() or target < 0 or target >= enemies.size(): return
 	var dog: Dictionary = dogs[dog_index]
 	var kind: int = int(dog["kind"])
-	_sound(GameAudio.skill_sound(skill))
+	_sound(GameAudio.skill_sound(skill,kind))
 	if not visual_effects_enabled: return
 	skill_flashes[int(dog["cell"])] = presentation_clock
 	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36] if kind>=36 else "bolt","age":0.0,"duration":1.1 if kind>=36 else 0.8,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(skill)})
 func _push_combat_fx(fx: Dictionary) -> void:
+	if bool(fx.get("apparition",false)):
+		for existing in combat_fx:
+			if bool(existing.get("apparition",false)) and existing.get("kind",-1)==fx.get("kind",-2) and float(existing["age"])<0.18 and Vector2(existing["to"]).distance_to(fx["to"])<30.0:
+				return
 	# Bound large bursts independently so a full board remains readable on mobile.
 	if not str(fx.get("skill","")).is_empty():
 		var skill_count: int = 0
@@ -2206,7 +2222,7 @@ func _ensure_aura_cache() -> void:
 		_aura_present[kind] = true
 		for skill in DOG_SKILLS.get(kind,[]):
 			if not str(skill).ends_with("_aura"): continue
-			_sound(GameAudio.skill_sound(str(skill)))
+			_sound(GameAudio.skill_sound(str(skill),kind))
 			if visual_effects_enabled:
 				var point: Vector2 = _cell_center(int(dog["cell"]))
 				_push_combat_fx({"from":point,"to":point,"style":"nature","age":0.0,"duration":1.1,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(str(skill))})

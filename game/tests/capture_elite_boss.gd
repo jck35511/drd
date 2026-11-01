@@ -116,5 +116,5 @@ func draw_effect_card(card: Control, g: Control, kind: int) -> void:
 	var font: Font = g.ui_theme.default_font
 	card.draw_string(font,Vector2(5,24),g.DOGS[kind],HORIZONTAL_ALIGNMENT_LEFT,160,17,Color.WHITE)
 	g.sky_art.draw_character(card,g.sky_art.unit_texture(kind),Vector2(85,218),92)
-	var fx: Dictionary = {"from":Vector2(85,208),"to":Vector2(85,102),"style":g.ELITE_STYLES[kind-36],"age":0.25,"duration":0.85,"kind":kind,"skill":g.DOG_SKILLS[kind][0]}
+	var fx: Dictionary = {"from":Vector2(85,208),"to":Vector2(85,102),"style":g.ELITE_STYLES[kind-36],"age":0.25,"duration":0.85,"kind":kind,"skill":g.DOG_SKILLS[kind][0],"apparition":kind>=42}
 	g.sky_art._draw_effect(card,fx,g)

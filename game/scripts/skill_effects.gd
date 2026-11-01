@@ -148,6 +148,7 @@ static func draw(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
 		if skill=="magic_splash":
 			canvas.draw_line(target-Vector2(0,120*tier_scale),target,Color(color,alpha*0.22),35*tier_scale,true)
 			canvas.draw_line(target-Vector2(0,120*tier_scale),target,white,5*tier_scale,true)
+	game.sky_art.draw_legendary_skill(canvas,fx)
 	if p<0.8:
 		var label: String = str(game.SKILL_NAMES.get(skill,skill))
 		var font: Font = game.ui_theme.default_font

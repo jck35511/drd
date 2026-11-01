@@ -31,3 +31,5 @@ subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "generate_
 
 # Compute isolated integer UV regions; original artwork remains untouched.
 subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "inspect_sprite_regions.py")], check=True)
+
+subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "inspect_legendary_assets.py")], check=True)

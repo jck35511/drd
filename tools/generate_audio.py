@@ -172,3 +172,80 @@ assert len({v["sha256"] for v in audit.values()})==len(skill_names)
 assert all(v["rms"]>0.015 and v["peak"]<0.9 for v in audit.values())
 (OUT/"skill-audio-audit.json").write_text(json.dumps(audit,indent=2),encoding="utf-8")
 print("SKILL_AUDIO_AUDIT:"+json.dumps(audit))
+
+# 0.29.4: cinematic elemental Foley, with audible low-frequency tails.
+# Original synthesis, no downloaded samples. Separate voices preserve these tails in combat.
+def cinematic_sound(name,duration,flavor):
+    gen=random.Random(48101+flavor)
+    buf=array("f",[0.0])*int(RATE*duration)
+    low=0.0; rumble=0.0
+    for i in range(len(buf)):
+        t=i/RATE; noise=gen.uniform(-1,1)
+        low=low*0.94+noise*0.06
+        rumble=rumble*0.992+noise*0.008
+        if flavor==0: # Thunder: sudden crack, deep rolling thunder, secondary distant rumbles.
+            value=noise*0.9*math.exp(-t*55)+low*2.4*math.exp(-t*3)+rumble*7*(1-math.exp(-t*20))*math.exp(-t*0.85)
+            value+=math.sin(2*math.pi*(54*t-6*t*t))*0.22*math.exp(-t*2)
+            value+=low*1.3*(math.exp(-((t-0.55)/0.22)**2)+0.6*math.exp(-((t-1.2)/0.3)**2))
+        elif flavor==1: # Explosion: pressure crack, bass blast, debris and falling flame.
+            value=noise*0.8*math.exp(-t*38)+math.sin(2*math.pi*(80*t-22*t*t))*0.65*math.exp(-t*5)
+            value+=low*3.0*math.exp(-t*2.6)+rumble*5.0*math.exp(-t*1.9)
+            if noise>0.98: value+=0.5*math.exp(-t*2)
+        elif flavor==2: # Ice fracture: several sharp, irregular glass/ice breaks.
+            value=noise*math.exp(-t*45)*0.6+low*0.4*math.exp(-t*6)
+            for j,offset in enumerate([0,0.07,0.16,0.28]):
+                u=t-offset
+                if u>=0: value+=math.sin(2*math.pi*(1703+j*617)*u)*0.2*math.exp(-u*15)+noise*0.2*math.exp(-u*35)
+        else: # Deep void/hell impact.
+            value=(math.sin(2*math.pi*43*t)+0.4*math.sin(2*math.pi*67*t))*0.32*math.exp(-t*2.5)
+            value+=low*2.0*math.exp(-t*2)+rumble*5*math.exp(-t*1.3)
+        buf[i]=value*min(1,t/0.001,(duration-t)/0.04)
+    peak=max(abs(v) for v in buf)
+    for i in range(len(buf)): buf[i]*=0.82/max(peak,0.001)
+    write(name,buf)
+for args in [("element_thunder",2.2,0),("element_explosion",1.7,1),("element_ice",1.0,2),("element_abyss",1.8,3)]:
+    cinematic_sound(*args)
+
+# Boss score replacement: aggressive low strings, brass stabs and large drums.
+# Intentionally shares neither the harp timbre nor the relaxed pulse of sky_theme.
+beat=60/148
+length=24*4*beat
+boss=array("f",[0.0])*round(length*RATE)
+drum_rng=random.Random(9031)
+def orchestral(buf,start,duration,pitch,gain=0.12):
+    begin=int(start*RATE);freq=hz(pitch)
+    for i in range(min(int(duration*RATE),len(buf)-begin)):
+        t=i/RATE
+        envelope=min(1,t/0.018)*min(1,(duration-t)/0.07)*math.exp(-t*1.8)
+        value=sum(math.sin(2*math.pi*freq*k*t)/k for k in range(1,7))
+        buf[begin+i]+=gain*value*envelope
+def battle_drum(buf,start,accent=False):
+    begin=int(start*RATE)
+    low=0.0
+    for i in range(min(int(RATE*0.6),len(buf)-begin)):
+        t=i/RATE;n=drum_rng.uniform(-1,1);low=0.9*low+0.1*n
+        bass=math.sin(2*math.pi*(75*t-35*t*t))*math.exp(-t*9)
+        crack=n*math.exp(-t*38)
+        buf[begin+i]+=(bass*0.45+low*0.8*math.exp(-t*8)+crack*(0.16 if accent else 0.04))
+progression=[[45,48,52],[41,45,48],[43,46,50],[40,44,47]]
+for bar in range(24):
+    start=bar*4*beat
+    chord=progression[(bar//2)%4]
+    for step in range(8):
+        orchestral(boss,start+step*beat/2,beat*0.42,chord[step%3]-12,0.16)
+        orchestral(boss,start+step*beat/2,beat*0.38,chord[(step+1)%3]+12,0.055)
+    for step in [0,1,2,2.75,3.5]: battle_drum(boss,start+step*beat,step in [0,2])
+    if bar%2==0:
+        for pitch in chord: orchestral(boss,start,beat*1.4,pitch+12,0.12)
+    if bar>=8:
+        for step,pitch in enumerate([chord[2]+24,chord[1]+24,chord[0]+24,chord[2]+24]):
+            orchestral(boss,start+step*beat,beat*0.7,pitch,0.065)
+peak=max(abs(v) for v in boss)
+for i in range(len(boss)): boss[i]*=0.78/max(peak,0.001)
+for i in range(int(RATE*0.012)):
+    boss[i]*=i/(RATE*0.012);boss[-1-i]*=i/(RATE*0.012)
+write("boss_theme",boss)
+cue=array("f",[0.0])*int(RATE*1.2)
+for at in [0,0.18,0.43]: battle_drum(cue,at,True)
+write("boss",cue)
+print("CINEMATIC_AUDIO_READY: thunder, explosion, ice, abyss; boss score 148 BPM low strings/brass/drums")

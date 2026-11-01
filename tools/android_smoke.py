@@ -23,7 +23,7 @@ packages = adb("shell","pm","list","packages").decode()
 for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
     if ("package:" + stock_app + "\n") in packages:
         adb("shell","pm","disable-user","--user","0",stock_app)
-adb("install", "-r", "build/MeongRandy-0.29.3-debug.apk")
+adb("install", "-r", "build/MeongRandy-0.29.4-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
@@ -87,6 +87,24 @@ import re
 music_level = float(re.search(r"music=([0-9.]+)",audio_text).group(1))
 sfx_level = float(re.search(r"sfx=([0-9.]+)",audio_text).group(1))
 assert music_level == 0 and 0.45 < sfx_level < 0.75, f"Volume persistence: music={music_level}, sfx={sfx_level}"
+# Restore audible BGM before checking music transitions; mute persistence alone is insufficient.
+tap(675,40)
+time.sleep(0.3)
+rect=layout["music"]
+tap(round(rect["x"]+rect["width"]*0.35),round(rect["y"]+rect["height"]/2))
+adb("shell","input","keyevent","KEYCODE_BACK")
+time.sleep(1.5)
+def audio_runtime():
+    paths=adb("shell","run-as",PKG,"find","files","-name","audio_runtime.json").decode().strip().splitlines()
+    assert paths, "Runtime music telemetry missing"
+    for attempt in range(4):
+        try: return json.loads(adb("shell","run-as",PKG,"cat",paths[0]))
+        except json.JSONDecodeError: time.sleep(0.1)
+    raise AssertionError("Runtime music telemetry unreadable")
+normal_audio=audio_runtime()
+assert not normal_audio["boss_mode"] and normal_audio["playing"] and normal_audio["volume"]["music"]>0
+assert normal_audio["track"].endswith("sky_theme.wav")
+
 
 adb("shell", "input", "keyevent", "KEYCODE_HOME")
 time.sleep(2)
@@ -109,6 +127,15 @@ tap(615,40) # Saved games intentionally restore paused.
 tap(165,235) # Select a unit: countdown must remain visible.
 time.sleep(3)
 capture("12-boss-elite-combat")
+boss_audio=audio_runtime()
+time.sleep(1.2)
+boss_audio_later=audio_runtime()
+assert boss_audio["boss_mode"] and boss_audio["playing"] and not boss_audio["paused"], "Boss track is not playing"
+assert boss_audio["track"].endswith("boss_theme.wav") and boss_audio["volume"]["music"]>0, "Boss track is absent or muted"
+assert boss_audio_later["position"]>boss_audio["position"], "Boss music keeps restarting or is stalled"
+(OUT/"music-transition.json").write_text(json.dumps({"normal":normal_audio,"boss":boss_audio,"boss_later":boss_audio_later},indent=2))
+print("ANDROID_BOSS_MUSIC_PASS:"+json.dumps(boss_audio_later))
+
 adb("shell","input","keyevent","KEYCODE_HOME")
 time.sleep(2)
 boss_state=json.loads(adb("shell","run-as",PKG,"cat",save_path[0]))
