@@ -25,6 +25,23 @@ func run() -> void:
 	for key in ["element_thunder","element_explosion","element_ice","element_abyss"]:
 		assert(g.game_audio.sounds.has(key))
 		assert(g.game_audio.sounds[key].get_length()>=1.0)
+	# Exercise the real combat emitter, rather than adding the flag only in a demo.
+	g.dogs.clear()
+	g.enemies.clear()
+	g.enemies.append({"progress":0.0,"hp":1000000.0,"max_hp":1000000.0,"armor":3.0,"effects":{},"enemy_type":"소형견"})
+	for kind in range(42,49):
+		g.dogs.assign([{"kind":kind,"cell":0,"cooldown":0.0}])
+		g.combat_fx.clear()
+		var skill: String="chain" if kind==44 else "freeze" if kind==42 else "burn" if kind in [47,48] else "heavy" if kind==46 else "magic_splash"
+		g._emit_skill_visual(0,0,skill)
+		assert(g.combat_fx.size()==1 and g.combat_fx[0].get("apparition",false),"Real legendary skill must spawn its painted form")
+		assert(g.combat_fx[0]["sound"]==g.GameAudio.skill_sound(skill,kind))
+		g._emit_skill_visual(0,0,skill)
+		assert(g.combat_fx.size()==1,"Same impact must not stack duplicate large forms")
+	g.dogs.assign([{"kind":11,"cell":0,"cooldown":0.0}])
+	g.combat_fx.clear()
+	g._emit_skill_visual(0,0,"crit")
+	assert(not g.combat_fx[0].get("apparition",false))
 	assert(g.game_audio.voices.size()==12,"Cinematic sounds need protected playback voices")
 	g.game_audio.set_level("music",0.0)
 	g.game_audio.set_boss_mode(true)

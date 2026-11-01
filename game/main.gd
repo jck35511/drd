@@ -2189,7 +2189,7 @@ func _emit_skill_visual(dog_index: int, target: int, skill: String) -> void:
 	_sound(GameAudio.skill_sound(skill,kind))
 	if not visual_effects_enabled: return
 	skill_flashes[int(dog["cell"])] = presentation_clock
-	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36] if kind>=36 else "bolt","age":0.0,"duration":1.1 if kind>=36 else 0.8,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(skill)})
+	_push_combat_fx({"from":_cell_center(int(dog["cell"])),"to":_route_point(float(enemies[target]["progress"])),"style":ELITE_STYLES[kind-36] if kind>=36 else "bolt","age":0.0,"duration":1.1 if kind>=36 else 0.8,"kind":kind,"skill":skill,"sound":GameAudio.skill_sound(skill,kind),"apparition":kind>=42 and skill in ["magic_splash","freeze","splash","chain","burn","heavy","poison","area_stun"]})
 func _push_combat_fx(fx: Dictionary) -> void:
 	if bool(fx.get("apparition",false)):
 		for existing in combat_fx:
