@@ -130,16 +130,32 @@ assert state["wave"] >= 1 and len(state["dogs"]) >= 1, "Touch did not start a pl
 adb("shell","am","force-stop",PKG)
 fixture=Path("work/verification/game/previews/boss-fixture.json").read_bytes()
 subprocess.run(["adb","shell","run-as "+PKG+" sh -c "+shlex.quote("cat > "+shlex.quote(save_path[0]))],input=fixture,check=True)
+# Remove the previous process's telemetry, so startup cannot reuse a stale normal-song state.
+runtime_paths=adb("shell","run-as",PKG,"find","files","-name","audio_runtime.json").decode().strip().splitlines()
+for path in runtime_paths: adb("shell","run-as",PKG,"rm",path)
 adb("shell","monkey","-p",PKG,"1")
-time.sleep(4)
+startup_deadline=time.monotonic()+45
+startup_audio={}
+while time.monotonic()<startup_deadline:
+    try:
+        startup_audio=audio_runtime()
+        if startup_audio["boss_mode"] and startup_audio["playing"] and not startup_audio["paused"]: break
+    except (AssertionError, subprocess.CalledProcessError):
+        pass
+    time.sleep(0.5)
+else:
+    capture("12-boss-startup-failed")
+    raise AssertionError("Boss startup did not become ready: "+json.dumps(startup_audio))
+print("ANDROID_BOSS_READY:"+json.dumps(startup_audio))
+time.sleep(1.0) # Allow the first rendered game frame before sending touch events.
 tap(615,40) # Saved games intentionally restore paused.
 tap(165,235) # Select a unit: countdown must remain visible.
 time.sleep(3)
 capture("12-boss-elite-combat")
 boss_audio=audio_runtime()
-time.sleep(1.2)
+time.sleep(2.0)
 boss_audio_later=audio_runtime()
-assert boss_audio["boss_mode"] and boss_audio["playing"] and not boss_audio["paused"], "Boss track is not playing"
+assert boss_audio["boss_mode"] and boss_audio["playing"] and not boss_audio["paused"], "Boss track is not playing: "+json.dumps(boss_audio)
 assert boss_audio["track"].endswith("boss_theme.wav") and boss_audio["volume"]["music"]>0, "Boss track is absent or muted"
 assert boss_audio_later["position"]>boss_audio["position"], "Boss music keeps restarting or is stalled"
 (OUT/"music-transition.json").write_text(json.dumps({"normal":normal_audio,"boss":boss_audio,"boss_later":boss_audio_later},indent=2))
