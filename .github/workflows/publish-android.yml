@@ -1,0 +1,64 @@
+name: Publish verified Android download
+on:
+  push:
+    branches: ["codex/sky-castle-step29"]
+    paths: [".github/workflows/publish-android.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: jck35511/drd
+      VERIFIED_RUN: "41436201325"
+      VERIFIED_SHA: "0e7607596bd3425f10740a418e24c204a05a37f2"
+    steps:
+      - name: Verify successful build and download its original files
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$VERIFIED_RUN" > run.json
+          python3 - <<'PY'
+          import json,os
+          run=json.load(open("run.json"))
+          assert run["status"]=="completed" and run["conclusion"]=="success"
+          assert run["head_sha"]==os.environ["VERIFIED_SHA"]
+          PY
+          gh run download "$VERIFIED_RUN" -R "$GH_REPO" -n MeongRandy-Step29-Android-and-source --dir build
+          sha256sum -c build/SHA256SUMS.txt
+      - name: Upload and verify draft assets before publishing fixed download URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.30.0 -R "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite it."
+            exit 1
+          fi
+          cat > notes.md <<'EOF'
+          Android 설치 파일입니다. 아래 Assets의 MeongRandy-0.30.0-debug.apk를 휴대폰에 다운로드한 뒤 실행하세요. APK는 압축 해제할 필요가 없습니다.
+          
+          소환 보관함과 수동 배치, 시작/승패 화면, 뽑기 팝업, 유형별 반복 천장, 히든 3종, 경제/난이도 1차 패치를 포함합니다.
+          
+          기능 테스트 43개와 Android 에뮬레이터 설치·터치·저장·스크롤·음량·보스 음악 검사를 통과한 원본 APK입니다. 어려움·지옥의 획득 경제까지 포함한 전체 클리어와 실제 기기 체감은 추가 검증이 필요합니다.
+          
+          상세 변경 및 검증: https://github.com/jck35511/drd/blob/codex/sky-castle-step29/docs/RELEASE_030.md
+          검증 빌드: https://github.com/jck35511/drd/actions/runs/41436201325
+          EOF
+          gh release create v0.30.0 build/MeongRandy-0.30.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt -R "$GH_REPO" --target "$VERIFIED_SHA" --title "멍랜디 0.30.0 Android" --notes-file notes.md --draft --prerelease
+          gh api "repos/$GH_REPO/releases/tags/v0.30.0" > release.json
+          python3 - <<'PY'
+          import json,pathlib
+          release=json.load(open("release.json"))
+          assets={a["name"]:a for a in release["assets"]}
+          for name in ["MeongRandy-0.30.0-debug.apk","MeongRandy-Step29-source.zip","SHA256SUMS.txt"]:
+              assert assets[name]["state"]=="uploaded"
+              assert assets[name]["size"]==pathlib.Path("build",name).stat().st_size
+          PY
+          gh release edit v0.30.0 -R "$GH_REPO" --draft=false --prerelease
+          gh release view v0.30.0 -R "$GH_REPO" --json url,assets
