@@ -36,20 +36,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view v0.30.0 -R "$GH_REPO" >/dev/null 2>&1; then
-            echo "Release already exists; refusing to overwrite it."
-            exit 1
-          fi
-          cat > notes.md <<'EOF'
-          Android 설치 파일입니다. 아래 Assets의 MeongRandy-0.30.0-debug.apk를 휴대폰에 다운로드한 뒤 실행하세요. APK는 압축 해제할 필요가 없습니다.
-          
-          소환 보관함과 수동 배치, 시작/승패 화면, 뽑기 팝업, 유형별 반복 천장, 히든 3종, 경제/난이도 1차 패치를 포함합니다.
-          
-          기능 테스트 43개와 Android 에뮬레이터 설치·터치·저장·스크롤·음량·보스 음악 검사를 통과한 원본 APK입니다. 어려움·지옥의 획득 경제까지 포함한 전체 클리어와 실제 기기 체감은 추가 검증이 필요합니다.
-          
-          상세 변경 및 검증: https://github.com/jck35511/drd/blob/codex/sky-castle-step29/docs/RELEASE_030.md
-          검증 빌드: https://github.com/jck35511/drd/actions/runs/41436201325
-          EOF
           gh api "repos/$GH_REPO/compare/$VERIFIED_SHA...$GITHUB_SHA" > changes.json
           python3 - <<'PY'
           import json
@@ -59,15 +45,20 @@ jobs:
               path=item["filename"]
               assert path.startswith(("game/tests/","docs/",".github/")), path
           PY
-          gh release create v0.30.0 build/MeongRandy-0.30.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt -R "$GH_REPO" --target "$GITHUB_SHA" --title "멍랜디 0.30.0 Android" --notes-file notes.md --draft --prerelease
-          gh api "repos/$GH_REPO/releases/tags/v0.30.0" > release.json
+          gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
           python3 - <<'PY'
-          import json,pathlib
-          release=json.load(open("release.json"))
+          import json,pathlib,hashlib
+          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.30.0"]
+          assert len(releases)==1
+          release=releases[0]
+          assert release["draft"], "Refusing to change a published release"
           assets={a["name"]:a for a in release["assets"]}
           for name in ["MeongRandy-0.30.0-debug.apk","MeongRandy-Step29-source.zip","SHA256SUMS.txt"]:
+              data=pathlib.Path("build",name).read_bytes()
               assert assets[name]["state"]=="uploaded"
-              assert assets[name]["size"]==pathlib.Path("build",name).stat().st_size
+              assert assets[name]["size"]==len(data)
+              assert assets[name]["digest"]=="sha256:"+hashlib.sha256(data).hexdigest()
+          pathlib.Path("release-id.txt").write_text(str(release["id"]))
           PY
-          gh release edit v0.30.0 -R "$GH_REPO" --draft=false --prerelease
-          gh release view v0.30.0 -R "$GH_REPO" --json url,assets
+          release_id=$(cat release-id.txt)
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -f target_commitish="$GITHUB_SHA" -F draft=false -F prerelease=true --jq '{url: .html_url, draft: .draft, assets: [.assets[] | {name, browser_download_url}]}'
