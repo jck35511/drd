@@ -51,10 +51,16 @@ func deploy_materials(g: Control, recipe: Dictionary) -> bool:
 			var candidate: int=int(g.dogs[i]["kind"])
 			if recipe["materials"].has(candidate) or g._sell_value(candidate)<=0: continue
 			var value: float=float(g.ATTACK[candidate])/float(g.COOLDOWN[candidate])
+			var spare: Dictionary=g.get_meta("spare_stock",{})
+			if int(spare.get(candidate,0))>0: value-=100000.0
 			if value<score:
 				score=value
 				lowest=i
 		if lowest<0: return false
+		var sold_kind: int=int(g.dogs[lowest]["kind"])
+		var spare: Dictionary=g.get_meta("spare_stock",{})
+		spare[sold_kind]=maxi(0,int(spare.get(sold_kind,0))-1)
+		g.set_meta("spare_stock",spare)
 		g.selected=lowest
 		g._sell_selected()
 		g.set_meta("sales",int(g.get_meta("sales",0))+1)
@@ -105,6 +111,7 @@ func manage(g: Control, stats: Dictionary) -> void:
 	var wanted: Dictionary={}
 	var order: Array[int]=[]
 	demand(goal,stock,wanted,order)
+	g.set_meta("spare_stock",stock.duplicate())
 	for result in order:
 		var recipe: Dictionary=recipes[result]
 		if not has_materials(g,recipe): continue
