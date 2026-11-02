@@ -1,7 +1,7 @@
 extends SceneTree
 const Game=preload("res://main.gd")
 func _initialize() -> void:
-	var totals: Dictionary={"쉬움":[7,3,1],"보통":[6,3,1],"어려움":[6,3,1],"지옥":[2,1,0]}
+	var totals: Dictionary={"쉬움":[13,5,1],"보통":[11,5,1],"어려움":[10,5,1],"지옥":[2,1,0]}
 	for difficulty in totals:
 		var g: Control=Game.new()
 		g.persistence_enabled=false

@@ -892,7 +892,7 @@ func _estimated_single_target_dps(kinds: Array, wave_number: int, difficulty_nam
 
 func _boss_stats(boss_number: int) -> Dictionary:
 	var basis: Dictionary = _regular_wave_stats(clampi(boss_number * BOSS_INTERVAL, 1, MAX_REGULAR_WAVE))
-	var late_progress: float = clampf(float(boss_number-1)/7.0,0.0,1.0)
+	var late_progress: float = clampf(float(boss_number-5)/3.0,0.0,1.0)
 	var late_scale: float = lerpf(1.0,float(BalanceRules.BOSS_END_MULTIPLIERS[difficulty]),late_progress*late_progress)
 	return {
 		"hp": float(basis["hp"]) * float(BOSS_HP_BY_DIFFICULTY.get(difficulty, BOSS_HP_MULTIPLIER)) * late_scale,

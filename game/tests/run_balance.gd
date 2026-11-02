@@ -101,15 +101,14 @@ func manage(g: Control, stats: Dictionary) -> void:
 	if g.hidden_tickets>0: g.features.choose_hidden(49)
 	fill_field(g)
 	var stock: Dictionary = counts(g)
-	var goal: int = 45
+	var goal: int = 44
 	if g.first_mythic_claimed:
-		goal=48
-	if g.first_transcendent_claimed.has(48):
-		goal=47 if difficulty_name!="쉬움" else 43
-		if int(stock.get(goal,0))>0:
-			goal=42 if int(stock.get(42,0))==0 else 44 if int(stock.get(44,0))==0 else 45
+		goal=47
+	if g.first_transcendent_claimed.has(47):
+		goal=45 if int(stock.get(45,0))==0 else 42 if int(stock.get(42,0))==0 else 43 if int(stock.get(43,0))==0 else 44
 	var wanted: Dictionary={}
 	var order: Array[int]=[]
+	var saving_for_item: bool=false
 	demand(goal,stock,wanted,order)
 	g.set_meta("spare_stock",stock.duplicate())
 	for result in order:
@@ -124,6 +123,8 @@ func manage(g: Control, stats: Dictionary) -> void:
 				var soon: bool=false
 				for milestone in g.BalanceRules.MILESTONES[g.difficulty][category]:
 					if int(milestone)>=g.wave and int(milestone)-g.wave<=10: soon=true
+				if not soon and g.dogs.size()>=16:
+					saving_for_item=true
 				if not soon and g.gold>=int(g.DrawRules.COSTS[category]) and g.dogs.size()>=16:
 					g.features.draw(category)
 					stats["draws"]+=1
@@ -149,6 +150,21 @@ func manage(g: Control, stats: Dictionary) -> void:
 				fill_field(g)
 				place(g)
 				return
+	if saving_for_item: return
+	if str(stats["policy"])=="skilled" and g.gold<20:
+		# Refund surplus via the same deploy -> sell actions available to a player.
+		# Never conjure gold or sell an ingredient reserved for the current goal.
+		for key in g.reserve_units.keys():
+			var kind: int=int(key)
+			if int(stock.get(kind,0))<=0 or g._sell_value(kind)<=0: continue
+			var free: int=free_cell(g)
+			if free<0: break
+			if g.features.deploy(kind,free):
+				g.selected=g.dogs.size()-1
+				g._sell_selected()
+				g.set_meta("sales",int(g.get_meta("sales",0))+1)
+				stock[kind]=int(stock[kind])-1
+				if g.gold>=20: break
 	if g.gold>=20:
 		g._summon()
 		stats["summons"]+=1
