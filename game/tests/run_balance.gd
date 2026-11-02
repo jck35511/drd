@@ -42,6 +42,22 @@ func deploy_materials(g: Control, recipe: Dictionary) -> bool:
 	var remaining: Array = recipe["materials"].duplicate()
 	for dog in g.dogs:
 		if remaining.has(int(dog["kind"])): remaining.erase(int(dog["kind"]))
+	# The reserve is not the field: legally sell surplus ordinary units when
+	# all 36 cells are occupied, otherwise material deployment can deadlock.
+	while g.dogs.size()+remaining.size()>36:
+		var lowest: int=-1
+		var score: float=INF
+		for i in range(g.dogs.size()):
+			var candidate: int=int(g.dogs[i]["kind"])
+			if recipe["materials"].has(candidate) or g._sell_value(candidate)<=0: continue
+			var value: float=float(g.ATTACK[candidate])/float(g.COOLDOWN[candidate])
+			if value<score:
+				score=value
+				lowest=i
+		if lowest<0: return false
+		g.selected=lowest
+		g._sell_selected()
+		g.set_meta("sales",int(g.get_meta("sales",0))+1)
 	for kind in remaining:
 		var free: int = free_cell(g)
 		if free<0 or not g.features.deploy(int(kind),free): return false
@@ -185,6 +201,7 @@ func play(seed_value: int, policy: String) -> Dictionary:
 			previous_boss = g.boss_round
 			stats["bosses"].append({"boss":previous_boss,"gold":g.gold,"units":counts(g)})
 		ticks += 1
+	stats["sales"]=int(g.get_meta("sales",0))
 	stats.merge({"victory":g.victory,"wave":g.wave,"boss":g.boss_round,"gold":g.gold,"peak_enemies":peak,"units":counts(g),"items":g.beast_items.duplicate(),"game_seconds":float(ticks)/60.0,"wall_seconds":float(Time.get_ticks_msec()-started)/1000.0,"ended":g.game_over or g.victory,"reason":"victory" if g.victory else ("boss_timeout" if peak < g._field_limit() else "field_limit")})
 	g.free()
 	return stats
