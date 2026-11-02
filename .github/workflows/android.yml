@@ -3,6 +3,7 @@ on:
   push:
     branches: ["codex/sky-castle-step29"]
     paths-ignore:
+      - ".github/workflows/publish-android.yml"
       - "game/tests/run_balance.gd"
       - ".github/workflows/balance.yml"
       - "docs/**"
