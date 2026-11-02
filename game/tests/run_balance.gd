@@ -115,7 +115,12 @@ func manage(g: Control, stats: Dictionary) -> void:
 	if g.dogs.size()>=24:
 		for recipe in g.RECIPES:
 			if int(recipe["result"])>=36: continue
-			if has_materials(g,recipe) and deploy_materials(g,recipe):
+			var extra: Dictionary=stock.duplicate()
+			var spare: bool=true
+			for material in recipe["materials"]:
+				if int(extra.get(material,0))<=0: spare=false
+				else: extra[material]=int(extra[material])-1
+			if spare and has_materials(g,recipe) and deploy_materials(g,recipe):
 				g._craft_recipe_from_catalog(int(recipe["result"]))
 				stats["crafts"]+=1
 				fill_field(g)
@@ -142,7 +147,7 @@ func place(g: Control) -> void:
 			var score: float = 0.0
 			var center: Vector2 = g._cell_center(cell)
 			var attack_range: float = float(g.RANGE[int(dog["kind"])])
-			if g.boss_running and not g.enemies.is_empty():
+			if not g.enemies.is_empty() and (g.boss_running or str(g.get_meta("policy","basic"))=="skilled"):
 				for dt in [0.0, 0.5, 1.0, 1.5]:
 					var p: Vector2 = g._route_point(fposmod(float(g.enemies[0]["progress"]) + dt * 0.05,4.0))
 					if center.distance_to(p) <= attack_range: score += 100.0
@@ -162,13 +167,9 @@ func play(seed_value: int, policy: String) -> Dictionary:
 	g._in_simulation = true
 	g.difficulty_confirmed = true
 	g.difficulty = difficulty_name
+	g.set_meta("policy",policy)
 	g.rng.seed = seed_value
 	var stats: Dictionary = {"policy":policy,"seed":seed_value,"difficulty":difficulty_name,"draws":0,"summons":0,"crafts":0,"sales":0,"bosses":[]}
-	# User's original pre-wave gambling is legal; stop at 500G or below 50G.
-	for attempt in range(0):
-		if g.gold < 200: break
-		g._draw_transcendent_gacha()
-		stats["draws"] += 1
 	for action in range(35): manage(g,stats)
 	g._start_wave()
 	var ticks: int = 0
@@ -177,7 +178,7 @@ func play(seed_value: int, policy: String) -> Dictionary:
 	var started: int = Time.get_ticks_msec()
 	while not g.game_over and not g.victory and ticks < 230000:
 		if ticks % 30 == 0: manage(g,stats)
-		if policy=="skilled" and g.boss_running and ticks % 120 == 0: place(g)
+		if policy=="skilled" and ticks % 120 == 0: place(g)
 		g._simulation_step(1.0/60.0)
 		peak = maxi(peak,g.enemies.size())
 		if g.boss_round > previous_boss:

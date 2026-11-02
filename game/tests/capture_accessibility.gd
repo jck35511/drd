@@ -33,6 +33,7 @@ func run() -> void:
 			layout["normal_difficulty"] = {"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
 	g._select_difficulty("보통")
 	g.reserve_units={0:4,49:1,50:1,51:1}
+	g._refresh()
 	g.features.open_reserve()
 	await snap("summon-reserve")
 	var pick: Control=g.features.reserve_list.get_child(0).get_child(1)
@@ -53,6 +54,7 @@ func run() -> void:
 		await snap("hidden-skill-"+str(index))
 	g.combat_fx.clear()
 	g.dogs.clear()
+	g.board.queue_redraw()
 	g.features.toast("초월 골드 3배 · +600G\n천장! 초월 조합 아이템 선택권 +1")
 	await snap("draw-result-popup")
 	g.features.tick(3)

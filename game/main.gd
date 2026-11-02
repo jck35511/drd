@@ -892,8 +892,10 @@ func _estimated_single_target_dps(kinds: Array, wave_number: int, difficulty_nam
 
 func _boss_stats(boss_number: int) -> Dictionary:
 	var basis: Dictionary = _regular_wave_stats(clampi(boss_number * BOSS_INTERVAL, 1, MAX_REGULAR_WAVE))
+	var late_progress: float = clampf(float(boss_number-1)/7.0,0.0,1.0)
+	var late_scale: float = lerpf(1.0,float(BalanceRules.BOSS_END_MULTIPLIERS[difficulty]),late_progress*late_progress)
 	return {
-		"hp": float(basis["hp"]) * float(BOSS_HP_BY_DIFFICULTY.get(difficulty, BOSS_HP_MULTIPLIER)),
+		"hp": float(basis["hp"]) * float(BOSS_HP_BY_DIFFICULTY.get(difficulty, BOSS_HP_MULTIPLIER)) * late_scale,
 		"armor": float(basis["armor"]) * BOSS_ARMOR_MULTIPLIER,
 		"magic_res": float(basis["magic_res"]),
 		"move_speed": BOSS_MOVE_SPEED,
@@ -2195,7 +2197,7 @@ func _open_unit_gallery() -> void:
 	var header := HBoxContainer.new()
 	outer.add_child(header)
 	var title := Label.new()
-	title.text = "천공 성채 · 49종 유닛 도감"
+	title.text = "천공 성채 · 52종 유닛 도감"
 	title.add_theme_font_size_override("font_size", 23)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -2214,7 +2216,7 @@ func _open_unit_gallery() -> void:
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	scroll.add_child(grid)
-	for kind in range(49):
+	for kind in range(DOGS.size()):
 		var card := VBoxContainer.new()
 		card.custom_minimum_size = Vector2(300, 260)
 		grid.add_child(card)

@@ -146,6 +146,8 @@ func deploy(kind: int, cell: int) -> bool:
 func open_reserve() -> void:
 	if g.game_over or g.victory or not g.difficulty_confirmed: return
 	g.pending_deploy = -1
+	for node in [g.recipe_panel,g.draw_info_panel,g.mission_panel]:
+		if is_instance_valid(node): node.hide()
 	restore_pause = g.paused
 	g.paused = true
 	if is_instance_valid(reserve_panel): reserve_panel.queue_free()

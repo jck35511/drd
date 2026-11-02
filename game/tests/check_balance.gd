@@ -22,7 +22,7 @@ func _run() -> void:
 		g.difficulty = name
 		var boss: Dictionary = g._boss_stats(8)
 		var ordinary: Dictionary = g._regular_wave_stats(80)
-		verify(is_equal_approx(float(boss["hp"]), float(ordinary["hp"]) * float(Game.BOSS_HP_BY_DIFFICULTY[name])), "boss HP profile " + name)
+		verify(is_equal_approx(float(boss["hp"]), float(ordinary["hp"]) * float(Game.BOSS_HP_BY_DIFFICULTY[name])*float(Game.BalanceRules.BOSS_END_MULTIPLIERS[name])), "boss HP profile " + name)
 		verify(float(boss["hp"]) > hp_before, "boss toughness increases " + name)
 		hp_before = float(boss["hp"])
 	verify(Game.DRAW_ITEM_TICKETS == 10000 and Game.MYTHIC_DRAW_ITEM_TICKETS == 1000 and Game.TRANSCENDENT_DRAW_ITEM_TICKETS == 100, "requested per-item ticket counts")
