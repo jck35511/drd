@@ -9,7 +9,7 @@ func _initialize() -> void:
 	call_deferred("_run")
 func _run() -> void:
 	var g: Control = Game.new()
-	verify(Game.ENDGAME_TIER_DAMAGE.size() == 6, "six tier scaling targets")
+	verify(Game.ENDGAME_TIER_DAMAGE.size() == 7, "six original tiers and hidden tier")
 	for kind in [0, 3, 6, 36, 42, 46]:
 		verify(is_equal_approx(g._tier_damage_scale(kind, 1), 1.0), "wave 1 original damage %d" % kind)
 		verify(g._tier_damage_scale(kind, 80) > 1.0, "wave 80 boosted damage %d" % kind)

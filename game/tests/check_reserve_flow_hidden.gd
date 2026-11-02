@@ -20,7 +20,10 @@ func run() -> void:
 	var total: int = 0
 	for count in g.reserve_units.values(): total+=int(count)
 	assert(total==40)
-	var kind: int = int(g.reserve_units.keys()[0])
+	var kind: int = -1
+	for key in g.reserve_units:
+		if int(g.reserve_units[key])>=2: kind=int(key)
+	assert(kind>=0)
 	var before: int = int(g.reserve_units[kind])
 	assert(not g.features.deploy(kind,-1))
 	assert(g.features.deploy(kind,0))

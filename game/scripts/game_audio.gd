@@ -1,6 +1,9 @@
 extends Node
-const SKILL_SOUNDS := ["crit","bleed","stun","slow","multi","armor","splash","heavy","area_stun","hp_percent","magic_splash","magic_res","freeze","chain","burn","vulnerable","poison","attack_aura","speed_aura","magic_aura","cooldown_aura"]
+const SKILL_SOUNDS := ["star_collapse","void_rift","dream_resonance","crit","bleed","stun","slow","multi","armor","splash","heavy","area_stun","hp_percent","magic_splash","magic_res","freeze","chain","burn","vulnerable","poison","attack_aura","speed_aura","magic_aura","cooldown_aura"]
 static func skill_sound(skill: String, kind: int=-1) -> String:
+	if skill=="star_collapse": return "element_hidden_star"
+	if skill=="void_rift": return "element_hidden_void"
+	if skill=="dream_resonance": return "element_hidden_dream"
 	if kind>=0:
 		if skill=="chain" or kind==44 and skill=="stun": return "element_thunder"
 		if skill=="burn" or kind==47 and skill=="magic_splash" or kind==48 and skill=="area_stun": return "element_explosion"
