@@ -56,12 +56,12 @@ jobs:
       - name: Upload attack motion preview
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.29.4-motion-preview
+          name: MeongRandy-0.29.5-motion-preview
           path: game/previews/attack-motion-demo.mp4
       - name: Upload music and elemental sound samples
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.29.4-audio-preview
+          name: MeongRandy-0.29.5-audio-preview
           path: |
             game/previews/mixer-*.wav
             game/audio/element_*.wav
@@ -117,10 +117,10 @@ jobs:
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.4-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.4-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.4-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-0.29.4-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.29.5-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.29.5-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.29.5-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.29.5-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -138,8 +138,8 @@ jobs:
       - name: Upload APK separately for phone installation
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.29.4-APK
-          path: build/MeongRandy-0.29.4-debug.apk
+          name: MeongRandy-0.29.5-APK
+          path: build/MeongRandy-0.29.5-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"

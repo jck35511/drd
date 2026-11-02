@@ -1875,6 +1875,52 @@ func _toggle_recipes() -> void:
 		recipe_last_signature = ""
 		_refresh_recipes()
 
+func _recipe_portrait(kind: int, side: float) -> TextureRect:
+	var portrait := TextureRect.new()
+	portrait.texture = _dog_portrait(kind)
+	portrait.custom_minimum_size = Vector2(side, side)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return portrait
+
+func _recipe_material_card(kind: int, have: int, needed: int) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(190, 0)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var frame := StyleBoxFlat.new()
+	frame.bg_color = Color("#e3f1e8") if have >= needed else Color("#e2e9f5")
+	frame.border_color = Color("#658c73") if have >= needed else Color("#aabbd5")
+	frame.set_border_width_all(1)
+	frame.set_corner_radius_all(8)
+	frame.content_margin_left = 7
+	frame.content_margin_right = 7
+	frame.content_margin_top = 6
+	frame.content_margin_bottom = 6
+	card.add_theme_stylebox_override("panel", frame)
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_theme_constant_override("separation", 3)
+	card.add_child(column)
+	var portrait := _recipe_portrait(kind, 72.0)
+	column.add_child(portrait)
+	var title := Label.new()
+	title.text = DOGS[kind]
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 22)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(title)
+	var quantity := Label.new()
+	quantity.text = "%d / %d" % [have, needed]
+	quantity.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	quantity.add_theme_font_size_override("font_size", 24)
+	quantity.add_theme_color_override("font_color", Color("#245b36") if have >= needed else Color("#963548"))
+	quantity.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(quantity)
+	return card
+
 func _refresh_recipes() -> void:
 	if recipe_list == null:
 		return
@@ -1903,33 +1949,51 @@ func _refresh_recipes() -> void:
 		for material in recipe["materials"]:
 			var material_kind: int = int(material)
 			needed[material_kind] = int(needed.get(material_kind, 0)) + 1
-		var parts: Array[String] = []
-		var ready: bool = true
+		var ready: bool = _recipe_item_ready(recipe)
 		for kind in needed.keys():
-			var have: int = int(owned.get(kind, 0))
-			var count: int = int(needed[kind])
-			parts.append("%s %d/%d" % [DOGS[int(kind)], have, count])
-			if have < count:
+			if int(owned.get(kind, 0)) < int(needed[kind]):
 				ready = false
+		var entry := VBoxContainer.new()
+		entry.name = "Recipe_%d" % result_kind
+		entry.add_theme_constant_override("separation", 8)
+		entry.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		recipe_list.add_child(entry)
+		var result_row := HBoxContainer.new()
+		result_row.add_theme_constant_override("separation", 14)
+		result_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry.add_child(result_row)
+		result_row.add_child(_recipe_portrait(result_kind, 84.0))
+		var name_label := Label.new()
+		name_label.text = "결과 · %s\n[%s]" % [DOGS[result_kind], GRADES[result_kind]]
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_label.add_theme_font_size_override("font_size", 24)
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		result_row.add_child(name_label)
+		var material_label := Label.new()
+		material_label.text = "재료 · 보유 / 필요 수량"
+		material_label.add_theme_font_size_override("font_size", 22)
+		material_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry.add_child(material_label)
+		var materials := GridContainer.new()
+		materials.columns = 3
+		materials.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		materials.add_theme_constant_override("h_separation", 8)
+		materials.add_theme_constant_override("v_separation", 8)
+		materials.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		entry.add_child(materials)
+		for kind in needed.keys():
+			materials.add_child(_recipe_material_card(int(kind), int(owned.get(kind, 0)), int(needed[kind])))
 		if recipe.has("item"):
 			var item_id: int = int(recipe["item"])
 			var item_count: int = int(beast_items.get(item_id, 0))
-			parts.append("%s %d/1" % [str(BEAST_ITEMS[item_id]), item_count])
-			if item_count < 1:
-				ready = false
-		var entry := VBoxContainer.new()
-		entry.add_theme_constant_override("separation", 8)
-		recipe_list.add_child(entry)
-		var name_label := Label.new()
-		name_label.text = "%s  [%s]" % [DOGS[result_kind], GRADES[result_kind]]
-		name_label.add_theme_font_size_override("font_size", 22)
-		entry.add_child(name_label)
-		var material_label := Label.new()
-		material_label.text = "재료: " + " + ".join(PackedStringArray(parts))
-		material_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		material_label.custom_minimum_size = Vector2(0, 52)
-		material_label.add_theme_font_size_override("font_size", 22)
-		entry.add_child(material_label)
+			var item_label := Label.new()
+			item_label.text = "전용 아이템 · %s  %d / 1" % [str(BEAST_ITEMS[item_id]), item_count]
+			item_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			item_label.add_theme_font_size_override("font_size", 22)
+			item_label.add_theme_color_override("font_color", Color("#245b36") if item_count >= 1 else Color("#963548"))
+			item_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			entry.add_child(item_label)
 		var craft_button := Button.new()
 		craft_button.text = "제작하기" if ready and not game_over else "재료 부족" if not ready else "게임 종료"
 		craft_button.disabled = not ready or game_over

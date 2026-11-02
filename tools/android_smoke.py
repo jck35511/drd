@@ -23,7 +23,7 @@ packages = adb("shell","pm","list","packages").decode()
 for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
     if ("package:" + stock_app + "\n") in packages:
         adb("shell","pm","disable-user","--user","0",stock_app)
-adb("install", "-r", "build/MeongRandy-0.29.4-debug.apk")
+adb("install", "-r", "build/MeongRandy-0.29.5-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
@@ -35,6 +35,19 @@ hierarchy = adb("shell","cat","/sdcard/window.xml").decode("utf-8","replace")
 if "Got it" in hierarchy or "Viewing full screen" in hierarchy:
     tap(630,285)
     time.sleep(2)
+# A stock-launcher ANR can cover a healthy game on a busy CI emulator.
+# Dismiss only that known system dialog, never a game ANR.
+if "Pixel Launcher" in hierarchy and "isn" in hierarchy:
+    import xml.etree.ElementTree as ET
+    import re
+    for node in ET.fromstring(hierarchy).iter("node"):
+        if node.get("text") == "Close app":
+            bounds=list(map(int,re.findall(r"\d+",node.get("bounds",""))))
+            assert len(bounds)==4
+            tap((bounds[0]+bounds[2])//2,(bounds[1]+bounds[3])//2)
+            time.sleep(2)
+            print("CLOSED_STOCK_LAUNCHER_ANR")
+            break
 capture("01-difficulty")
 # Coordinates follow the actual 720x1280 Godot layout.
 tap_control("normal_difficulty")

@@ -26,6 +26,19 @@ func run() -> void:
 	g._select_difficulty("보통")
 	g._toggle_recipes()
 	await snap("readable-recipes")
+	for grade in ["맹수", "신화", "초월"]:
+		g._set_recipe_filter(grade)
+		g.recipe_list.get_parent().reset_position()
+		await snap("recipe-portraits-"+grade)
+	g.dogs.assign([{"kind":0,"cell":0,"cooldown":0.0},{"kind":0,"cell":1,"cooldown":0.0},{"kind":1,"cell":2,"cooldown":0.0}])
+	g._set_recipe_filter("전체")
+	await process_frame
+	await process_frame
+	g.recipe_list.get_parent().ensure_control_visible(g.recipe_list.get_node("Recipe_4"))
+	await snap("recipe-duplicate-materials")
+	g.dogs.clear()
+	g._set_recipe_filter("전체")
+	g.recipe_list.get_parent().reset_position()
 	g._toggle_recipes()
 	g._set_draw_info_tab("확률표")
 	g._toggle_draw_info()
