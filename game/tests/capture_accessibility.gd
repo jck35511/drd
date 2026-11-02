@@ -44,6 +44,15 @@ func run() -> void:
 	await snap("hidden-choice")
 	g.features.close_choice()
 	g.hidden_tickets=0
+	g.dogs.assign([{"kind":49,"cell":0,"cooldown":0.0},{"kind":50,"cell":5,"cooldown":0.0},{"kind":51,"cell":30,"cooldown":0.0}])
+	for index in range(3):
+		g.combat_fx.clear()
+		g.HiddenCombat.emit(g,index,Vector2(360,149),["star_collapse","void_rift","dream_resonance"][index])
+		g.combat_fx[0]["age"]=0.7
+		g.board.queue_redraw()
+		await snap("hidden-skill-"+str(index))
+	g.combat_fx.clear()
+	g.dogs.clear()
 	g.features.toast("초월 골드 3배 · +600G\n천장! 초월 조합 아이템 선택권 +1")
 	await snap("draw-result-popup")
 	g.features.tick(3)

@@ -59,7 +59,7 @@ static func restore(game: Control) -> bool:
 		for field in ["hp", "max_hp", "progress"]:
 			if not enemy.has(field): return false
 	for field in FIELDS:
-		if not data.has(field) or field in ["dogs", "enemies", "beast_items", "first_transcendent_claimed","reserve_units","draw_history","hidden_zones"]: continue
+		if not data.has(field) or field in ["dogs", "enemies", "beast_items", "first_transcendent_claimed","reserve_units","draw_history","hidden_zones","draw_counts","pity_tickets"]: continue
 		game.set(field, data[field])
 	game.dogs.clear()
 	for dog in saved_dogs: game.dogs.append(dog)
@@ -69,6 +69,10 @@ static func restore(game: Control) -> bool:
 	for key in data.get("beast_items", {}): game.beast_items[int(key)] = int(data["beast_items"][key])
 	game.first_transcendent_claimed.clear()
 	for key in data.get("first_transcendent_claimed", {}): game.first_transcendent_claimed[int(key)] = bool(data["first_transcendent_claimed"][key])
+	for field in ["draw_counts","pity_tickets"]:
+		var normalized: Dictionary = {}
+		for key in data.get(field,{}): normalized[str(key)]=maxi(0,int(data[field][key]))
+		game.set(field,normalized)
 	game.reserve_units.clear()
 	for key in data.get("reserve_units",{}): game.reserve_units[int(key)]=int(data["reserve_units"][key])
 	game.draw_history.clear()

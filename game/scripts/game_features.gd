@@ -296,6 +296,8 @@ func draw_info() -> void:
 		button(g.draw_info_list,"히든 선택권 %d장 · 사용" % g.hidden_tickets,open_choice.bind("히든")).disabled = g.hidden_tickets<=0 or g.game_over or g.victory
 		button(g.draw_info_list,"%s 조합 아이템 선택권 %d장 · 사용" % [category,int(g.pity_tickets.get(category,0))],open_choice.bind(category)).disabled = int(g.pity_tickets.get(category,0))<=0 or g.game_over or g.victory
 		g._draw_info_line("선택권과 보관 유닛은 이번 게임에서 사용합니다.",19)
+		var schedules: Dictionary = g.BalanceRules.MILESTONES[g.difficulty]
+		g._draw_info_line("라운드 보상: "+str(schedules[category])+" · 각 선택권 1장",19)
 		for outcome in Rules.TABLES[category]:
 			if outcome["type"] == "item":
 				var id: int = int(outcome["item"])

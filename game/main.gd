@@ -1,4 +1,5 @@
 extends Control
+const BalanceRules = preload("res://scripts/balance_rules.gd")
 const Features = preload("res://scripts/game_features.gd")
 const DrawRules = preload("res://scripts/draw_rules.gd")
 const HiddenCombat = preload("res://scripts/hidden_combat.gd")
@@ -44,18 +45,17 @@ var visual_effects_enabled: bool = true
 # Dog random defense. Step23-polished UI uses one bundled background PNG; no external plugins.
 const COST: int = 20
 const KILL_REWARD: int = 5
-# Step8 reward draw: each of six exclusive items is exactly 3%.
-# Gold rewards occupy the remaining 82%; weights halve for each multiplier.
+# DrawRules is the canonical one-million-ticket distribution for all categories.
 const DRAW_COST: int = 50
-const DRAW_ITEM_TICKETS: int = 10000  # out of 100000, per item
+const DRAW_ITEM_TICKETS: int = 10000  # out of 1000000, per item
 const DRAW_TICKET_TOTAL: int = 1000000
 const DRAW_GOLD_WEIGHTS := [1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1] # 0x..10x; sum=2047
 const DRAW_GOLD_WEIGHT_TOTAL: int = 2047
 const DRAW_ITEM_IDS := [36, 37, 38, 39, 40, 41]
-# Step11: independent mythic gacha (4 x 1% items, 96% gold); beast gacha remains 6 x 3%.
+# Four mythic items, each 0.1% of all mythic draws.
 const MYTHIC_DRAW_ITEM_IDS := [42, 43, 44, 45]
 const MYTHIC_DRAW_ITEM_TICKETS: int = 1000
-# Step13: dedicated transcendent draw, three 0.1% item outcomes; 99.7% gold.
+# Three transcendent items, each 0.01% of all transcendent draws.
 const TRANSCENDENT_DRAW_ITEM_IDS := [46, 47, 48]
 const TRANSCENDENT_DRAW_ITEM_TICKETS: int = 100
 const COLS: int = 6
@@ -152,8 +152,8 @@ const ROUTE := [Vector2(93, 149), Vector2(627, 149), Vector2(627, 700), Vector2(
 var beast_items: Dictionary = {} # item ID (beast result kind) -> owned quantity; initially empty
 # Step15: four difficulty multipliers and regular-wave stat progression.
 const DIFFICULTY_STATS := {
-	"쉬움": {"hp": 0.70, "armor": 0.70, "magic_res_bonus": -0.10},
-	"보통": {"hp": 1.00, "armor": 1.00, "magic_res_bonus": 0.00},
+	"쉬움": {"hp": 0.55, "armor": 0.55, "magic_res_bonus": -0.10},
+	"보통": {"hp": 0.80, "armor": 0.85, "magic_res_bonus": 0.00},
 	"어려움": {"hp": 1.50, "armor": 1.40, "magic_res_bonus": 0.05},
 	"지옥": {"hp": 2.20, "armor": 1.80, "magic_res_bonus": 0.10},
 }
@@ -170,16 +170,16 @@ const BOSS_HP_MULTIPLIER: float = 20.0 # Legacy reference; actual Step20 boss HP
 # These are tuning targets, not measured mobile clear rates. At wave 1 every tier is 1x.
 const ENDGAME_TIER_DAMAGE := {"히든": 11.00, "소형견": 1.05, "중형견": 1.30, "대형견": 1.80, "맹수": 3.00, "신화": 6.00, "초월": 11.00}
 # Boss HP is 8/11/15/20 times the corresponding difficulty-scaled regular enemy.
-const BOSS_HP_BY_DIFFICULTY := {"쉬움": 8.0, "보통": 11.0, "어려움": 15.0, "지옥": 20.0}
+const BOSS_HP_BY_DIFFICULTY := {"쉬움": 6.0, "보통": 9.0, "어려움": 15.0, "지옥": 20.0}
 const BOSS_ARMOR_MULTIPLIER: float = 1.5
 const BOSS_MOVE_SPEED: float = 0.05
 const BOSS_KILL_REWARD: int = 100 # Fallback legacy constant for external checks.
 # Step21: 80 regular-wave completion awards and 8 boss kill awards.
-const WAVE_COMPLETION_REWARDS := [10, 15, 20, 25, 30, 35, 40, 50]
-const BOSS_REWARDS := [150, 250, 400, 600, 900, 1200, 1600, 2000]
-const FIRST_BEAST_REWARD: int = 400
-const FIRST_MYTHIC_REWARD: int = 1000
-const FIRST_TRANSCENDENT_REWARD: int = 2000
+const WAVE_COMPLETION_REWARDS := BalanceRules.WAVE_REWARDS
+const BOSS_REWARDS := BalanceRules.BOSS_REWARDS
+const FIRST_BEAST_REWARD: int = BalanceRules.FIRST_BEAST
+const FIRST_MYTHIC_REWARD: int = BalanceRules.FIRST_MYTHIC
+const FIRST_TRANSCENDENT_REWARD: int = BalanceRules.FIRST_TRANSCENDENT
 const REGULAR_WAVE_DURATION: float = 40.0
 const REGULAR_WAVE_ENEMY_COUNT: int = 18
 const REGULAR_SPAWN_INTERVAL: float = 2.0
@@ -360,7 +360,7 @@ func _build_difficulty_panel() -> void:
 	heading.add_theme_font_size_override("font_size", 29)
 	content.add_child(heading)
 	difficulty_description = Label.new()
-	difficulty_description.text = "지옥은 숙련된 운영과 행운이 모두 필요합니다.\n운이 나쁘면 숙련자도 실패할 수 있습니다."
+	difficulty_description.text = "쉬움: 초월 1개와 신화 중심 덱\n보통: 기본 운영 · 어려움: 숙련된 운영\n지옥: 숙련된 운영과 좋은 운"
 	difficulty_description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	difficulty_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	difficulty_description.add_theme_font_size_override("font_size", 22)
@@ -549,12 +549,12 @@ func _on_successful_fusion(result_kind: int) -> int:
 
 func _mission_status_text() -> String:
 	var lines: Array[String] = ["최초 조합 미션 (한 판 기준)", ""]
-	lines.append("%s  맹수 등급 최초 조합    +400G" % ("[완료]" if first_beast_claimed else "[미달성]"))
-	lines.append("%s  신화 등급 최초 조합    +1,000G" % ("[완료]" if first_mythic_claimed else "[미달성]"))
+	lines.append("%s  맹수 등급 최초 조합    +100G" % ("[완료]" if first_beast_claimed else "[미달성]"))
+	lines.append("%s  신화 등급 최초 조합    +250G" % ("[완료]" if first_mythic_claimed else "[미달성]"))
 	for kind in TRANSCENDENT_DRAW_ITEM_IDS:
-		lines.append("%s  %s 최초 조합    +2,000G" % ["[완료]" if first_transcendent_claimed.has(kind) else "[미달성]", DOGS[kind]])
+		lines.append("%s  %s 최초 조합    +500G" % ["[완료]" if first_transcendent_claimed.has(kind) else "[미달성]", DOGS[kind]])
 	var claimed: int = (FIRST_BEAST_REWARD if first_beast_claimed else 0) + (FIRST_MYTHIC_REWARD if first_mythic_claimed else 0) + FIRST_TRANSCENDENT_REWARD * first_transcendent_claimed.size()
-	lines.append("\n달성 골드: %d / 7,400G" % claimed)
+	lines.append("\n달성 골드: %d / 1,850G" % claimed)
 	lines.append("실제 조합 성공 시 자동 지급 · 중복 불가")
 	return "\n".join(PackedStringArray(lines))
 
@@ -969,6 +969,8 @@ func _complete_regular_wave() -> void:
 	auto_advance_pending = true
 	var earned: int = _wave_completion_reward(wave)
 	gold += earned
+	var milestone: String = BalanceRules.grant_milestone(self,wave)
+	if not milestone.is_empty(): features.toast("라운드 %d 보상 · %s" % [wave,milestone])
 	last_economy_notice = "일반 %d웨이브 클리어 +%dG" % [wave, earned]
 	_refresh()
 

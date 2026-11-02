@@ -80,6 +80,12 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 			canvas.draw_rect(rect, color)
 			canvas.draw_rect(rect.grow(-2.0), Color("#9eadd0"), false, 1.0)
 			var center: Vector2 = game._cell_center(cell)
+			if game.pending_deploy>=0:
+				var occupied: bool = false
+				for placed in game.dogs:
+					if int(placed["cell"])==cell: occupied=true
+				if not occupied:
+					canvas.draw_rect(rect.grow(-3),Color("#70dcff"),false,3.0)
 			if support:
 				canvas.draw_arc(center, 12.0, 0.0, TAU, 16, Color("#8b99bf"), 1.0, true)
 				canvas.draw_line(center + Vector2(-7, 0), center + Vector2(7, 0), Color("#8b99bf"), 1.0)
