@@ -50,7 +50,16 @@ jobs:
           상세 변경 및 검증: https://github.com/jck35511/drd/blob/codex/sky-castle-step29/docs/RELEASE_030.md
           검증 빌드: https://github.com/jck35511/drd/actions/runs/41436201325
           EOF
-          gh release create v0.30.0 build/MeongRandy-0.30.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt -R "$GH_REPO" --target "$VERIFIED_SHA" --title "멍랜디 0.30.0 Android" --notes-file notes.md --draft --prerelease
+          gh api "repos/$GH_REPO/compare/$VERIFIED_SHA...$GITHUB_SHA" > changes.json
+          python3 - <<'PY'
+          import json
+          files=json.load(open("changes.json"))["files"]
+          assert len(files)<300
+          for item in files:
+              path=item["filename"]
+              assert path.startswith(("game/tests/","docs/",".github/")), path
+          PY
+          gh release create v0.30.0 build/MeongRandy-0.30.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt -R "$GH_REPO" --target "$GITHUB_SHA" --title "멍랜디 0.30.0 Android" --notes-file notes.md --draft --prerelease
           gh api "repos/$GH_REPO/releases/tags/v0.30.0" > release.json
           python3 - <<'PY'
           import json,pathlib
