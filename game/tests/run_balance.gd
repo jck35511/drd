@@ -173,32 +173,64 @@ func manage(g: Control, stats: Dictionary) -> void:
 
 
 func place(g: Control) -> void:
-	# Move into free cells, just as touch input does; no overlaps or stat edits.
-	var used: Dictionary = {}
-	for dog in g.dogs: used[int(dog["cell"])] = true
-	for dog in g.dogs:
-		var current: int = int(dog["cell"])
-		used.erase(current)
-		var best: int = current
-		var best_score: float = -INF
+	# Prioritize the main damage dealers. Every relocation uses an empty cell;
+	# occupied targets are resolved through a spare cell (the player can pause).
+	var order: Array = g.dogs.duplicate()
+	order.sort_custom(func(a: Dictionary,b: Dictionary) -> bool:
+		var ka: int=int(a["kind"])
+		var kb: int=int(b["kind"])
+		var va: float=float(g.ATTACK[ka])/float(g.COOLDOWN[ka])*g._tier_damage_scale(ka)+(10000.0 if ka>=42 else 0.0)
+		var vb: float=float(g.ATTACK[kb])/float(g.COOLDOWN[kb])*g._tier_damage_scale(kb)+(10000.0 if kb>=42 else 0.0)
+		return va>vb)
+	var assigned: Dictionary={}
+	var desired: Array[Dictionary]=[]
+	for dog in order:
+		var current: int=int(dog["cell"])
+		var best: int=current
+		var best_score: float=-INF
 		for cell in range(36):
-			if used.has(cell): continue
-			var score: float = 0.0
-			var center: Vector2 = g._cell_center(cell)
-			var attack_range: float = float(g.RANGE[int(dog["kind"])])
+			if assigned.has(cell): continue
+			var score: float=0.0
+			var center: Vector2=g._cell_center(cell)
+			var reach: float=float(g.RANGE[int(dog["kind"])])
 			if not g.enemies.is_empty() and (g.boss_running or str(g.get_meta("policy","basic"))=="skilled"):
-				for dt in [0.0, 0.5, 1.0, 1.5]:
-					var p: Vector2 = g._route_point(fposmod(float(g.enemies[0]["progress"]) + dt * 0.05,4.0))
-					if center.distance_to(p) <= attack_range: score += 100.0
+				for dt in [0.0,0.5,1.0,1.5]:
+					var point: Vector2=g._route_point(fposmod(float(g.enemies[0]["progress"])+dt*float(g.enemies[0].get("move_speed",0.05)),4.0))
+					if center.distance_to(point)<=reach: score+=100.0
 			else:
 				for segment in range(32):
-					if center.distance_to(g._route_point(float(segment)/8.0)) <= attack_range: score += 1.0
-			if cell == current: score += 0.001
-			if score > best_score:
-				best_score = score
-				best = cell
-		dog["cell"] = best
-		used[best] = true
+					if center.distance_to(g._route_point(float(segment)/8.0))<=reach: score+=1.0
+			if cell==current: score+=0.001
+			if score>best_score:
+				best_score=score
+				best=cell
+		assigned[best]=true
+		desired.append({"dog":dog,"cell":best})
+	for attempt in range(108):
+		var occupied: Dictionary={}
+		for dog in g.dogs: occupied[int(dog["cell"])]=dog
+		var complete: bool=true
+		var moved: bool=false
+		for plan in desired:
+			var dog: Dictionary=plan["dog"]
+			var target: int=int(plan["cell"])
+			if int(dog["cell"])==target: continue
+			complete=false
+			if not occupied.has(target):
+				occupied.erase(int(dog["cell"]))
+				dog["cell"]=target
+				occupied[target]=dog
+				moved=true
+		if complete: return
+		if not moved:
+			var spare: int=free_cell(g)
+			if spare<0: return
+			for plan in desired:
+				var dog: Dictionary=plan["dog"]
+				if int(dog["cell"])!=int(plan["cell"]):
+					dog["cell"]=spare
+					break
+
 func play(seed_value: int, policy: String) -> Dictionary:
 	var g: Control = Game.new()
 	g.persistence_enabled = false
