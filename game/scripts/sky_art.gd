@@ -1,0 +1,310 @@
+extends RefCounted
+const AttackAnimator = preload("res://scripts/attack_animator.gd")
+const SkillEffects = preload("res://scripts/skill_effects.gd")
+# Shared atlases: 49 independent hero illustrations, four regular enemies, eight bosses.
+var atlases: Array[Texture2D] = []
+var regions: Array[Texture2D] = []
+var region_manifest: Array = []
+var legendary_frames: Array[Texture2D] = []
+var apparition_frames: Array[Texture2D] = []
+
+func load_atlases() -> void:
+	if not atlases.is_empty():
+		return
+	if FileAccess.file_exists("res://assets/unit_regions.json"):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/unit_regions.json"))
+		if parsed is Array: region_manifest = parsed
+	_load_legendary_art()
+	for sheet in range(8):
+		var path := "res://assets/sky_atlas_%d.png" % sheet
+		var texture: Texture2D = null
+		if ResourceLoader.exists(path):
+			texture = load(path) as Texture2D
+		else:
+			var image := Image.load_from_file(path)
+			if image != null and not image.is_empty():
+				texture = ImageTexture.create_from_image(image)
+		atlases.append(texture)
+		for slot in range(8):
+			if texture == null:
+				regions.append(null)
+				continue
+			var region := AtlasTexture.new()
+			region.atlas = texture
+			var dimensions := Vector2(float(texture.get_width()) / 4.0, float(texture.get_height()) / 2.0)
+			var index: int = sheet*8+slot
+			if region_manifest.size() > index:
+				var bounds: Array = region_manifest[index]["rect"]
+				region.region = Rect2(float(bounds[0]),float(bounds[1]),float(bounds[2]),float(bounds[3]))
+				# Virtual transparent padding prevents outlines touching the icon frame.
+				region.margin = Rect2(6,6,12,12)
+			else:
+				region.region = Rect2(Vector2(slot % 4, int(slot / 4)) * dimensions, dimensions)
+			region.filter_clip = true
+			regions.append(region)
+
+func unit_texture(kind: int) -> Texture2D:
+	return regions[kind] if kind >= 0 and kind < 49 and regions.size() >= 49 else null
+
+func enemy_texture(kind: int) -> Texture2D:
+	var index: int = 49 + clampi(kind, 0, 11)
+	return regions[index] if index < regions.size() else null
+
+func draw_character(canvas: CanvasItem, texture: Texture2D, center: Vector2, height: float, tint: Color = Color.WHITE) -> void:
+	if texture == null:
+		canvas.draw_circle(center, height * 0.35, tint)
+		return
+	var ratio: float = float(texture.get_width()) / maxf(1.0, float(texture.get_height()))
+	var dimensions := Vector2(height * ratio, height)
+	canvas.draw_texture_rect(texture, Rect2(center - dimensions * 0.5, dimensions), false, tint)
+
+func draw_battle(game: Control, canvas: CanvasItem) -> void:
+	var route: Array = game.ROUTE
+	# Four-sided blue stone path and countable 6x6 ivory platform.
+	for i in range(4):
+		canvas.draw_line(route[i], route[(i + 1) % 4], Color("#d8b46c"), 55.0, true)
+		canvas.draw_line(route[i], route[(i + 1) % 4], Color("#203f7c"), 48.0, true)
+		canvas.draw_line(route[i], route[(i + 1) % 4], Color("#426fc0"), 36.0, true)
+	var dimensions := Vector2(game.COLS * game.CELL, game.ROWS * game.CELL)
+	canvas.draw_rect(Rect2(game.GRID_ORIGIN - Vector2(8, 8), dimensions + Vector2(11, 11)), Color("#e4c780"))
+	canvas.draw_rect(Rect2(game.GRID_ORIGIN - Vector2(4, 4), dimensions + Vector2(3, 3)), Color("#6077a4"))
+	for row in range(game.ROWS):
+		for col in range(game.COLS):
+			var cell: int = row * game.COLS + col
+			var rect := Rect2(game.GRID_ORIGIN + Vector2(col, row) * game.CELL, Vector2.ONE * (game.CELL - 5.0))
+			var support: bool = row in [2, 3] and col in [2, 3]
+			var color := Color("#c8d4f1") if support else Color("#eff1fa") if (row + col) % 2 == 0 else Color("#e2e8f5")
+			canvas.draw_rect(rect, color)
+			canvas.draw_rect(rect.grow(-2.0), Color("#9eadd0"), false, 1.0)
+			var center: Vector2 = game._cell_center(cell)
+			if support:
+				canvas.draw_arc(center, 12.0, 0.0, TAU, 16, Color("#8b99bf"), 1.0, true)
+				canvas.draw_line(center + Vector2(-7, 0), center + Vector2(7, 0), Color("#8b99bf"), 1.0)
+				canvas.draw_line(center + Vector2(0, -7), center + Vector2(0, 7), Color("#8b99bf"), 1.0)
+			else:
+				canvas.draw_polyline(PackedVector2Array([center + Vector2(0, -6), center + Vector2(6, 0), center + Vector2(0, 6), center + Vector2(-6, 0), center + Vector2(0, -6)]), Color("#c0c9df"), 1.0, true)
+	# Selected range and reachable route segments underneath characters.
+	if game.selected >= 0 and game.selected < game.dogs.size():
+		var dog: Dictionary = game.dogs[game.selected]
+		var origin: Vector2 = game._cell_center(int(dog["cell"]))
+		var reach: float = float(game.RANGE[int(dog["kind"])])
+		canvas.draw_circle(origin, reach, Color(0.25, 0.65, 1.0, 0.065))
+		canvas.draw_arc(origin, reach, 0.0, TAU, 72, Color(0.25, 0.7, 1.0, 0.65), 2.0, true)
+		for step in range(160):
+			var a: Vector2 = game._route_point(float(step) / 40.0)
+			var b: Vector2 = game._route_point(float(step + 1) / 40.0)
+			if origin.distance_to((a + b) * 0.5) <= reach:
+				canvas.draw_line(a, b, Color("#80e4ff"), 5.0, true)
+	for i in range(game.dogs.size()):
+		var dog: Dictionary = game.dogs[i]
+		var kind: int = int(dog["kind"])
+		var cell: int = int(dog["cell"])
+		var center: Vector2 = game._cell_center(cell)
+		var elapsed: float = game.presentation_clock - float(game.attack_flashes.get(cell, -10.0))
+		var aim: Vector2 = game.attack_vectors.get(cell,Vector2.UP)
+		var duration: float = float(game.attack_durations.get(cell,0.6))
+		var phase: float = clampf(elapsed/maxf(0.01,duration),0.0,1.0)
+		var skill_elapsed: float = game.presentation_clock - float(game.skill_flashes.get(cell,-10.0))
+		canvas.draw_circle(center + Vector2(0, 22), 22.0, Color(0.1, 0.15, 0.3, 0.18))
+		if kind >= 36:
+			var ring := Color("#e7be4c") if kind < 42 else Color("#56bfee") if kind < 46 else Color("#ba76f4")
+			canvas.draw_arc(center, 29.0, 0.0, TAU, 36, ring, 1.5, true)
+		if DOG_HAS_AURA.has(kind) or kind>=36:
+			var rune_color: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "nature")
+			if DOG_HAS_AURA.has(kind):
+				rune_color.a = 0.35 + 0.15 * sin(game.presentation_clock*2.0)
+				canvas.draw_arc(center,26.0,game.presentation_clock,game.presentation_clock+TAU*0.8,32,rune_color,2.0,true)
+			if skill_elapsed >= 0.0 and skill_elapsed < 0.7:
+				rune_color.a = 1.0-skill_elapsed/0.7
+				canvas.draw_arc(center,24.0+skill_elapsed*24.0,0.0,TAU,40,rune_color,3.0,true)
+		draw_unit_pose(canvas,kind,center,phase,aim)
+		if game.selected == i:
+			canvas.draw_arc(center, 33.0, 0.0, TAU, 36, Color("#f7bd3e"), 3.0, true)
+	for enemy in game.enemies:
+		var point: Vector2 = game._route_point(float(enemy["progress"]))
+		var is_boss: bool = bool(enemy.get("is_boss", false))
+		var enemy_index: int = 4 + clampi(int(enemy.get("boss_round", 1)) - 1, 0, 7) if is_boss else maxi(0, game.REGULAR_ENEMY_TYPES.find(str(enemy.get("enemy_type", ""))))
+		var bob: float = sin(game.presentation_clock * 9.0 + float(enemy["progress"]) * 2.0) * 1.5
+		canvas.draw_circle(point + Vector2(0, 15), 21.0 if is_boss else 14.0, Color(0.05, 0.1, 0.2, 0.2))
+		draw_character(canvas, enemy_texture(enemy_index), point + Vector2(0, bob), 68.0 if is_boss else 44.0)
+		var statuses: Dictionary = enemy.get("effects", {})
+		if statuses.has("freeze") or statuses.has("stun"):
+			canvas.draw_arc(point, 25.0, 0.0, TAU, 24, Color("#8be8ff") if statuses.has("freeze") else Color("#ffe18a"), 2.5, true)
+		elif statuses.has("slow"):
+			canvas.draw_arc(point, 23.0, 0.0, TAU, 24, Color("#6995f3"), 1.5, true)
+		for effect in ["bleed", "poison", "burn"]:
+			if statuses.has(effect):
+				var tint := Color("#e8678a") if effect == "bleed" else Color("#95e879") if effect == "poison" else Color("#ffbf65")
+				canvas.draw_circle(point + Vector2(-12 + ["bleed", "poison", "burn"].find(effect) * 12, -22), 3.0, tint)
+		var width: float = 48.0 if is_boss else 32.0
+		var bar := Rect2(point + Vector2(-width * 0.5, -39 if is_boss else -27), Vector2(width, 4))
+		canvas.draw_rect(bar, Color("#28314b"))
+		canvas.draw_rect(Rect2(bar.position, Vector2(width * clampf(float(enemy["hp"]) / maxf(1.0, float(enemy["max_hp"])), 0.0, 1.0), 4)), Color("#f37b9f") if is_boss else Color("#f0a58a"))
+	for fx in game.combat_fx:
+		_draw_effect(canvas, fx, game)
+	if game.paused:
+		canvas.draw_rect(Rect2(65, 135, 590, 580), Color(0.08, 0.12, 0.25, 0.25))
+
+
+const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
+const DOG_HAS_AURA := [16,17,26,28,35,38,43,45,47,48]
+func effect_color(style: String) -> Color:
+	var colors: Dictionary = {"roar":"#ffca57","claw":"#ff8753","fang":"#bad9ff","shadow":"#c29cff","wind":"#d1ffb0","spirit":"#ff9fdd","ice":"#8cffff","sun":"#fff18b","lightning":"#b5d4ff","nature":"#8dffb9","abyss":"#d489ff","heaven":"#fff4bb","hell":"#ff6e6e","bolt":"#ffe3a0"}
+	return Color(colors.get(style,"#d4beff"))
+func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
+	if float(fx["age"]) < 0.0: return
+	if not str(fx.get("skill","")).is_empty():
+		SkillEffects.draw(canvas,fx,game)
+		return
+	var p: float = clampf(float(fx["age"]) / float(fx["duration"]),0.0,1.0)
+	var origin: Vector2 = fx["from"]
+	var target: Vector2 = fx["to"]
+	var style: String = fx["style"]
+	var skill: String = str(fx.get("skill",""))
+	var special: bool = not skill.is_empty()
+	var power: float = 1.6 if special else 1.0
+	var color: Color = effect_color(style)
+	color.a = minf(1.0,(1.0-p)*1.7)
+	var radius: float = (14.0+p*27.0)*power
+	var shot: Vector2 = origin.lerp(target,minf(1.0,p*3.0))
+	var white := Color(1,1,1,color.a*0.85)
+	if style == "bolt":
+		canvas.draw_circle(shot,3.5,color)
+		return
+	# A bright core and trail make every elite's ordinary attack readable.
+	if not special:
+		if int(fx.get("kind",-1))>=42: draw_legendary_projectile(canvas,fx)
+		canvas.draw_line(shot,origin.lerp(target,maxf(0.0,p*3.0-0.22)),color,4.0,true)
+		canvas.draw_circle(shot,5.0,color)
+		canvas.draw_circle(shot,2.0,white)
+	if style == "claw" or style == "wind":
+		for i in range(3):
+			var offset := Vector2(float(i-1)*12.0,-float(i-1)*5.0)
+			canvas.draw_arc(target+offset,radius*0.7,-PI*0.85+p*0.4,PI*0.2+p*0.4,20,color,3.5*power,true)
+	elif style == "fang":
+		for side in [-1,1]:
+			var points := PackedVector2Array([target+Vector2(-radius,side*radius*0.5),target+Vector2(-radius*0.3,side*4),target+Vector2(0,side*radius*0.35),target+Vector2(radius*0.3,side*4),target+Vector2(radius,side*radius*0.5)])
+			canvas.draw_polyline(points,color,3.0*power,true)
+	elif style == "lightning":
+		var points := PackedVector2Array()
+		for i in range(9):
+			var q: Vector2 = origin.lerp(target,float(i)/8.0)
+			if i > 0 and i < 8: q += Vector2(0,(1.0 if i%2==0 else -1.0)*11.0*power)
+			points.append(q)
+		canvas.draw_polyline(points,color,6.0*power,true)
+		canvas.draw_polyline(points,white,2.0,true)
+	elif style == "ice":
+		for i in range(6):
+			var angle: float = TAU*float(i)/6.0
+			var ray := Vector2(cos(angle),sin(angle))
+			var side := Vector2(-ray.y,ray.x)
+			var crystal := PackedVector2Array([target+ray*radius,target+ray*radius*0.45+side*5*power,target+ray*6,target+ray*radius*0.45-side*5*power])
+			canvas.draw_colored_polygon(crystal,Color(color,color.a*0.65))
+			canvas.draw_polyline(crystal,color,2.0,true)
+	elif style == "sun" or style == "heaven":
+		var beam_from: Vector2 = target + Vector2(0,-100.0*power)
+		canvas.draw_line(beam_from,target,Color(color,color.a*0.25),22.0*power,true)
+		canvas.draw_line(beam_from,target,white,5.0*power,true)
+		canvas.draw_arc(target,radius,0,TAU,40,color,3.0,true)
+		for i in range(8):
+			var ray := Vector2.from_angle(TAU*i/8.0+p)
+			canvas.draw_line(target+ray*radius*0.55,target+ray*radius,color,2.5,true)
+	elif style == "hell":
+		for i in range(3):
+			var base: Vector2 = target+Vector2((i-1)*23.0,8.0)
+			var flame := PackedVector2Array([base+Vector2(-10,0),base+Vector2(-6,-radius),base+Vector2(3,-radius*1.7),base+Vector2(11,0)])
+			canvas.draw_colored_polygon(flame,Color(color,color.a*0.55))
+			canvas.draw_line(base,base+Vector2(0,-radius*1.1),white,3.0,true)
+	elif style == "abyss" or style == "shadow":
+		canvas.draw_circle(target,radius*0.65,Color(0.12,0.02,0.20,color.a*0.55))
+		for i in range(3):
+			canvas.draw_arc(target,radius*(0.5+i*0.25),p*6+i*2,p*6+i*2+PI,24,color,3.0,true)
+	elif style == "spirit" or style == "nature":
+		for i in range(3):
+			var angle: float = p*5+TAU*float(i)/3.0
+			var orb: Vector2 = target+Vector2.from_angle(angle)*radius
+			canvas.draw_circle(orb,6.0*power,color)
+			canvas.draw_arc(target,radius,angle-0.7,angle,12,white,2.0,true)
+		if style == "nature":
+			canvas.draw_arc(target,radius*0.6,0,TAU,32,color,2.5,true)
+	else: # Lion shockwave.
+		for i in range(2):
+			canvas.draw_arc(target,radius+float(i)*10.0,0,TAU,40,color,3.0*power,true)
+	if special and p < 0.85:
+		var label: String = str(game.SKILL_NAMES.get(skill,skill))
+		var font: Font = game.ui_theme.default_font
+		var pos: Vector2 = target+Vector2(-35,-46-p*12)
+		pos.x = clampf(pos.x,12,590)
+		pos.y = maxf(100.0,pos.y)
+		canvas.draw_string_outline(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,4,Color(0.06,0.08,0.16,color.a))
+		canvas.draw_string(font,pos,label,HORIZONTAL_ALIGNMENT_LEFT,-1,20,white)
+
+func _load_legendary_art() -> void:
+	if not FileAccess.file_exists("res://assets/legendary_regions.json"): return
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/legendary_regions.json"))
+	for sheet in ["legendary_attack","legendary_vfx"]:
+		var texture: Texture2D = load("res://assets/"+sheet+".png")
+		for bounds in manifest[sheet]["regions"]:
+			var region := AtlasTexture.new()
+			region.atlas = texture
+			region.region = Rect2(float(bounds[0]),float(bounds[1]),float(bounds[2]),float(bounds[3]))
+			region.filter_clip = true
+			if sheet=="legendary_attack": legendary_frames.append(region)
+			else: apparition_frames.append(region)
+static func legendary_frame_index(phase: float) -> int:
+	if phase<0.12 or phase>=0.9: return 0
+	if phase<0.34: return 1
+	if phase<0.60: return 2
+	return 3
+func draw_unit_pose(canvas: CanvasItem, kind: int, center: Vector2, phase: float, aim: Vector2, height: float=65.0) -> void:
+	var pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
+	if kind>=42 and legendary_frames.size()==28:
+		var frame: int = legendary_frame_index(phase)
+		var offset: Vector2 = Vector2(pose["offset"])*0.25
+		canvas.draw_set_transform(center+offset,0.0,Vector2(-1.0 if aim.x< -0.1 else 1.0,1.0))
+		# These are separate painted anatomical poses, not rotations of the idle art.
+		draw_character(canvas,legendary_frames[(kind-42)*4+frame],Vector2.ZERO,height*1.20)
+		canvas.draw_set_transform(Vector2.ZERO)
+		return
+	var motion_center: Vector2 = center+Vector2(pose["offset"])
+	var tint: Color = effect_color(ELITE_STYLES[kind-36] if kind>=36 else "bolt")
+	if phase>0.23 and phase<0.63 and AttackAnimator.clip_for(kind) in ["slash","pounce","cleave"]:
+		for echo in range(2,0,-1):
+			canvas.draw_set_transform(motion_center-aim*float(echo)*11,float(pose["rotation"])-float(echo)*0.06,pose["scale"])
+			draw_character(canvas,unit_texture(kind),Vector2.ZERO,height,Color(tint,0.14/float(echo)))
+	canvas.draw_set_transform(motion_center,float(pose["rotation"]),pose["scale"])
+	draw_character(canvas,unit_texture(kind),Vector2.ZERO,height)
+	canvas.draw_set_transform(Vector2.ZERO)
+	AttackAnimator.draw_weapon(canvas,motion_center,aim,pose,tint)
+func _draw_apparition_texture(canvas: CanvasItem, index: int, point: Vector2, width: float, alpha: float, direction: Vector2) -> void:
+	if apparition_frames.size()<9: return
+	var texture: Texture2D = apparition_frames[index]
+	var height: float = width*texture.get_height()/maxf(1.0,float(texture.get_width()))
+	canvas.draw_set_transform(point,0.0,Vector2(-1.0 if direction.x< -0.1 else 1.0,1.0))
+	canvas.draw_texture_rect(texture,Rect2(Vector2(-width,-height)*0.5,Vector2(width,height)),false,Color(1,1,1,alpha))
+	canvas.draw_set_transform(Vector2.ZERO)
+func draw_legendary_projectile(canvas: CanvasItem, fx: Dictionary) -> void:
+	var kind: int = int(fx["kind"])
+	if kind<42: return
+	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
+	var origin: Vector2 = fx["from"]
+	var target: Vector2 = fx["to"]
+	var point: Vector2 = origin.lerp(target,minf(1.0,p*2.2))
+	_draw_apparition_texture(canvas,kind-42,point,66.0,0.85*(1.0-p),target-origin)
+func draw_legendary_skill(canvas: CanvasItem, fx: Dictionary) -> void:
+	var kind: int = int(fx.get("kind",-1))
+	if kind<42 or not bool(fx.get("apparition",false)): return
+	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
+	var origin: Vector2 = fx["from"]
+	var target: Vector2 = fx["to"]
+	var direction: Vector2 = (target-origin).normalized()
+	var point: Vector2 = origin.lerp(target,minf(1.0,p*2.5))
+	var width: float = (135.0 if kind<46 else 165.0)+sin(p*PI)*55.0
+	var opacity: float = minf(1.0,(1.0-p)*2.0)
+	# Painted animal/demon forms travel to the real impact point; layered trails fade behind.
+	for trail in range(2,0,-1):
+		_draw_apparition_texture(canvas,kind-42,point-direction*float(trail)*21.0,width*(1.0-float(trail)*0.09),opacity*0.16/float(trail),direction)
+	_draw_apparition_texture(canvas,kind-42,point,width,opacity,direction)
+	if p>0.35:
+		if kind==42: _draw_apparition_texture(canvas,7,target+Vector2(0,14),155.0,opacity*0.80,Vector2.RIGHT)
+		elif kind in [43,45,47,48]: _draw_apparition_texture(canvas,8,target+Vector2(0,12),145.0,opacity*0.55,Vector2.RIGHT)
