@@ -1,12 +1,26 @@
 """Smoke test the exported APK, without modifying game rules or the APK."""
 from pathlib import Path
-import subprocess, time, json, base64, io, shlex
+import subprocess, time, json, base64, io, shlex, sys
 from PIL import Image, ImageChops
 OUT = Path("build/android-smoke")
 OUT.mkdir(parents=True, exist_ok=True)
 PKG = "com.jck35511.meongrandy"
 def adb(*args):
     return subprocess.check_output(["adb", *args], stderr=subprocess.STDOUT)
+def save_failure(exc_type, exc, tb):
+    import traceback
+    try:
+        logs=adb("logcat","-d").decode("utf-8","replace")
+        (OUT/"failure-logcat.txt").write_text(logs)
+        lines=logs.splitlines()
+        for i,line in enumerate(lines):
+            if any(word in line for word in ["FATAL EXCEPTION","SCRIPT ERROR","Parse Error","Fatal signal","Process: "+PKG,"crash_dump","OutOfMemoryError"]):
+                print("ANDROID_FAILURE_LOG:"+"\n".join(lines[max(0,i-3):i+15]))
+        (OUT/"failure-screen.png").write_bytes(adb("exec-out","screencap","-p"))
+    except Exception as capture_error:
+        print("FAILURE_CAPTURE_ERROR:",capture_error)
+    traceback.print_exception(exc_type,exc,tb)
+sys.excepthook=save_failure
 def capture(name):
     (OUT / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
 layout = json.loads(Path("work/verification/game/previews/audio-layout.json").read_text())
@@ -27,8 +41,14 @@ adb("install", "-r", "build/MeongRandy-0.30.0-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
+startup_deadline=time.monotonic()+45
+while time.monotonic()<startup_deadline:
+    try:
+        if adb("shell","pidof",PKG).strip(): break
+    except subprocess.CalledProcessError: pass
+    time.sleep(1)
+else: raise AssertionError("App failed to launch within 45 seconds")
 time.sleep(12)
-assert adb("shell", "pidof", PKG).strip(), "App failed to launch"
 # Dismiss Android's own first-use fullscreen tutorial if present.
 adb("shell","uiautomator","dump","/sdcard/window.xml")
 hierarchy = adb("shell","cat","/sdcard/window.xml").decode("utf-8","replace")
