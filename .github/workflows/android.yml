@@ -2,6 +2,10 @@ name: Godot verification and Android APK
 on:
   push:
     branches: ["codex/sky-castle-step29"]
+    paths-ignore:
+      - "game/tests/run_balance.gd"
+      - ".github/workflows/balance.yml"
+      - "docs/**"
   workflow_dispatch:
 permissions:
   contents: read
