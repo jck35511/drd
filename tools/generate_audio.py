@@ -249,3 +249,27 @@ cue=array("f",[0.0])*int(RATE*1.2)
 for at in [0,0.18,0.43]: battle_drum(cue,at,True)
 write("boss",cue)
 print("CINEMATIC_AUDIO_READY: thunder, explosion, ice, abyss; boss score 148 BPM low strings/brass/drums")
+
+# Three distinct original hidden skill cues: stellar chimes/impact, void rush,
+# and a rising dream chord. Fixed seeds keep offline builds reproducible.
+for name,variant in [("element_hidden_star",0),("element_hidden_void",1),("element_hidden_dream",2)]:
+    duration=2.2
+    buf=array("f",[0.0])*int(RATE*duration)
+    noise_rng=random.Random(771+variant)
+    low=0.0
+    for i in range(len(buf)):
+        t=i/RATE
+        envelope=min(1,t/0.015)*min(1,(duration-t)/0.15)
+        low=0.97*low+0.03*noise_rng.uniform(-1,1)
+        if variant==0:
+            value=sum(math.sin(2*math.pi*f*t)*math.exp(-t*(1.4+k*.3)) for k,f in enumerate([523.25,783.99,1046.5,1567.98]))*.2
+            value+=low*3*math.exp(-max(0,t-.25)*3)+math.sin(2*math.pi*(90*t-12*t*t))*.3*math.exp(-t*3)
+        elif variant==1:
+            value=low*4+math.sin(2*math.pi*(95*t-15*t*t))*.3+math.sin(2*math.pi*43*t)*.18
+            value*=math.sin(min(1,t/duration)*math.pi)
+        else:
+            value=sum(math.sin(2*math.pi*f*t)*(.5+.5*math.sin(t*4+k)) for k,f in enumerate([659.25,830.61,987.77,1318.51]))*.12*math.exp(-t*.65)
+        buf[i]=value*envelope
+    peak=max(abs(v) for v in buf)
+    for i in range(len(buf)): buf[i]*=.80/max(.001,peak)
+    write(name,buf)

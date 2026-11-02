@@ -20,9 +20,42 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	var layout: Dictionary = {}
+	for child in g.features.start_panel.get_child(0).get_child(0).get_children():
+		if child is Button:
+			var key: String = "new_game" if child.text.begins_with("새 게임") else "continue_game"
+			layout[key]={"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
+	await snap("start-screen")
+	g.features.new_game()
+	await process_frame
+	await process_frame
 	for child in g.difficulty_panel.get_child(0).get_children():
 		if child is Button and child.text.begins_with("보통"):
 			layout["normal_difficulty"] = {"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
+	g._select_difficulty("보통")
+	g.reserve_units={0:4,49:1,50:1,51:1}
+	g.features.open_reserve()
+	await snap("summon-reserve")
+	var pick: Control=g.features.reserve_list.get_child(0).get_child(1)
+	layout["reserve_pick"]={"x":pick.global_position.x,"y":pick.global_position.y,"width":pick.size.x,"height":pick.size.y}
+	g.features.close_reserve()
+	g.reserve_units.clear()
+	g.hidden_tickets=1
+	g.features.open_choice("히든")
+	await snap("hidden-choice")
+	g.features.close_choice()
+	g.hidden_tickets=0
+	g.features.toast("초월 골드 3배 · +600G\n천장! 초월 조합 아이템 선택권 +1")
+	await snap("draw-result-popup")
+	g.features.tick(3)
+	g.game_over=true
+	g._refresh()
+	await snap("defeat-retry")
+	g.features.new_game()
+	g._select_difficulty("보통")
+	g.victory=true
+	g._refresh()
+	await snap("victory-retry")
+	g.features.new_game()
 	g._select_difficulty("보통")
 	g._toggle_recipes()
 	await snap("readable-recipes")

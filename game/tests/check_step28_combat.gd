@@ -11,7 +11,7 @@ func run() -> void:
 	g.persistence_enabled = false
 	g.visual_effects_enabled = false
 	verify(g.COLS == 6 and g.ROWS == 6, "exact 6x6 board")
-	verify(g.DRAW_ITEM_TICKETS == 3000 and g.MYTHIC_DRAW_ITEM_TICKETS == 1000 and g.TRANSCENDENT_DRAW_ITEM_TICKETS == 100, "all requested draw odds preserved")
+	verify(g.DRAW_ITEM_TICKETS == 10000 and g.MYTHIC_DRAW_ITEM_TICKETS == 1000 and g.TRANSCENDENT_DRAW_ITEM_TICKETS == 100, "requested per-item ticket counts")
 	verify(g.DIFFICULTY_STATS["지옥"]["hp"] == 2.2 and g.BOSS_HP_BY_DIFFICULTY["지옥"] == 20.0, "hell difficulty values preserved")
 	for effect in ["bleed", "poison", "burn"]:
 		g.enemies.clear()
@@ -40,8 +40,8 @@ func run() -> void:
 	g.rng.seed=444
 	for i in range(10):
 		g._summon()
-		var dog: Dictionary = g.dogs.back()
-		verify(g._cell_reaches_path(int(dog["cell"]),float(g.RANGE[dog["kind"]])),"summon chooses reachable empty cell")
+		verify(g.dogs.is_empty(),"summon waits for manual placement")
+	verify(g.gold==800 and not g.reserve_units.is_empty(),"ten paid summons accumulated in reserve")
 	g.free()
 	# Compare attacks, enemy HP, progress, and timers under frame rate and speed changes.
 	var states: Array[Dictionary] = []

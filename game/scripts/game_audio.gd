@@ -51,7 +51,7 @@ func _ready() -> void:
 	for style in ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]:
 		names.append("attack_"+style)
 	for skill in SKILL_SOUNDS: names.append(skill_sound(skill))
-	names.append_array(["element_thunder","element_explosion","element_ice","element_abyss"])
+	names.append_array(["element_hidden_star","element_hidden_void","element_hidden_dream","element_thunder","element_explosion","element_ice","element_abyss"])
 	for name in names:
 		var path: String = "res://audio/" + name + ".wav"
 		if ResourceLoader.exists(path): sounds[name] = load(path)

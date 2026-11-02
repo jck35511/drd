@@ -61,7 +61,7 @@ func run() -> void:
 	ui.persistence_enabled = false
 	get_root().add_child(ui)
 	ui.set_process(false)
-	verify(ui._dog_portraits.size() == 49,"49 illustrated units loaded")
+	verify(ui._dog_portraits.size() == 52,"52 illustrated units loaded")
 	ui._open_unit_gallery()
 	verify(ui.unit_gallery != null and ui.unit_gallery.visible,"illustrated unit gallery opens")
 	ui.queue_free()

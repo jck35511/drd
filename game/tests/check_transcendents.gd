@@ -12,7 +12,7 @@ func _initialize() -> void:
 func _run_checks() -> void:
 	var names := ["심연의 아몬", "천공의 라", "명계의 케르베로스"]
 	var skills := [["heavy", "armor", "poison", "hp_percent"], ["magic_splash", "burn", "magic_res", "magic_aura"], ["area_stun", "slow", "speed_aura", "cooldown_aura"]]
-	verify(Game.DOGS.size() == 49 and Game.GRADES.size() == 49 and Game.DOG_COLORS.size() == 49, "49 units and aligned arrays")
+	verify(Game.DOGS.size() == 52 and Game.GRADES.size() == 52 and Game.DOG_COLORS.size() == 52, "52 units and aligned arrays")
 	for i in range(3):
 		var k: int = i + 46
 		verify(Game.DOGS[k] == names[i] and Game.GRADES[k] == "초월" and Game.DOG_SKILLS[k] == skills[i], "transcendent name, grade and four effects: " + names[i])

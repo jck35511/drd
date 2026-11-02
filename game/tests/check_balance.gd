@@ -25,7 +25,7 @@ func _run() -> void:
 		verify(is_equal_approx(float(boss["hp"]), float(ordinary["hp"]) * float(Game.BOSS_HP_BY_DIFFICULTY[name])), "boss HP profile " + name)
 		verify(float(boss["hp"]) > hp_before, "boss toughness increases " + name)
 		hp_before = float(boss["hp"])
-	verify(Game.DRAW_ITEM_TICKETS == 3000 and Game.MYTHIC_DRAW_ITEM_TICKETS == 1000 and Game.TRANSCENDENT_DRAW_ITEM_TICKETS == 100, "original gacha probabilities unchanged")
+	verify(Game.DRAW_ITEM_TICKETS == 10000 and Game.MYTHIC_DRAW_ITEM_TICKETS == 1000 and Game.TRANSCENDENT_DRAW_ITEM_TICKETS == 100, "requested per-item ticket counts")
 	verify(Game.MATCHUP_BONUS == 1.20 and Game.MATCHUP_PENALTY == 0.90, "original matchups unchanged")
 	verify(g._estimated_single_target_dps([42,43,44], 80) > g._estimated_single_target_dps([42,43,44], 1), "mythic DPS progression estimate")
 	g.free()

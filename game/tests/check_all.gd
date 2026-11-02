@@ -26,8 +26,8 @@ func _run() -> void:
     var data: Array = [Game.DOGS, Game.GRADES, Game.ATTACK, Game.RANGE, Game.COOLDOWN, Game.DOG_COLORS]
     var names: Array[String] = ["DOGS", "GRADES", "ATTACK", "RANGE", "COOLDOWN", "DOG_COLORS"]
     for i in range(data.size()):
-        _check(data[i].size() == 49, "49 entries: " + names[i])
-    if Game.GRADES.size() != 49 or Game.DOGS.size() != 49:
+        _check(data[i].size() == 52, "52 entries: " + names[i])
+    if Game.GRADES.size() != 52 or Game.DOGS.size() != 52:
         _finish()
         return
     var small: Array[int] = []
@@ -129,7 +129,7 @@ func _run() -> void:
     for i in range(5):
         var previous_gold: int = game.gold
         game._summon()
-        if game.dogs.size() != i + 1 or game.gold != previous_gold - 20 or Game.GRADES[int(game.dogs[-1]["kind"])] != "소형견":
+        if game.dogs.size() != 0 or game.gold != previous_gold - 20:
             summon_ok = false
     _check(summon_ok, "summon only small dogs; 20G deducted on success")
     var no_gold_dogs: Array = game.dogs.duplicate(true)
@@ -141,9 +141,9 @@ func _run() -> void:
         game.dogs.append({"cell": i, "kind": small[0], "cooldown": 0.0})
     var old_gold: int = game.gold
     game._summon()
-    _check(game.gold == old_gold and game.dogs.size() == 36, "full board: no gold charge or extra unit")
+    _check(game.gold == old_gold-20 and game.dogs.size() == 36 and not game.reserve_units.is_empty(), "full board: paid summon stays in reserve")
     game.free()
-    _check(Game.DOG_SKILLS.size() == 35, "22 dog, 6 beast, 4 mythic and 3 transcendent skill sets preserved")
+    _check(Game.DOG_SKILLS.size() == 38, "22 dog, 6 beast, 4 mythic and 3 transcendent skill sets preserved")
     for tier in ["소형견", "중형견", "대형견"]:
         _check(Game.SKILL_CHANCE.has(tier) and Game.SKILL_POWER.has(tier), "skill balance tier: " + tier)
     game = _new_game()

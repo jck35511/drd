@@ -1,4 +1,14 @@
 extends Control
+const Features = preload("res://scripts/game_features.gd")
+const DrawRules = preload("res://scripts/draw_rules.gd")
+const HiddenCombat = preload("res://scripts/hidden_combat.gd")
+var features = Features.new(self)
+var reserve_units: Dictionary = {}
+var pending_deploy: int = -1
+var draw_counts: Dictionary = {}
+var pity_tickets: Dictionary = {}
+var hidden_tickets: int = 0
+var hidden_zones: Array[Dictionary] = []
 const TouchVolume = preload("res://scripts/touch_volume.gd")
 const TouchScroll = preload("res://scripts/touch_scroll.gd")
 const GameAudio = preload("res://scripts/game_audio.gd")
@@ -37,8 +47,8 @@ const KILL_REWARD: int = 5
 # Step8 reward draw: each of six exclusive items is exactly 3%.
 # Gold rewards occupy the remaining 82%; weights halve for each multiplier.
 const DRAW_COST: int = 50
-const DRAW_ITEM_TICKETS: int = 3000  # out of 100000, per item
-const DRAW_TICKET_TOTAL: int = 100000
+const DRAW_ITEM_TICKETS: int = 10000  # out of 100000, per item
+const DRAW_TICKET_TOTAL: int = 1000000
 const DRAW_GOLD_WEIGHTS := [1024, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1] # 0x..10x; sum=2047
 const DRAW_GOLD_WEIGHT_TOTAL: int = 2047
 const DRAW_ITEM_IDS := [36, 37, 38, 39, 40, 41]
@@ -52,8 +62,8 @@ const COLS: int = 6
 const ROWS: int = 6
 const CELL: float = 77.0
 const GRID_ORIGIN := Vector2(127, 197)
-const DOGS := ["말티즈", "푸들", "치와와", "비글", "시바견", "코기", "허스키", "골든리트리버", "도베르만", "사모예드", "포메라니안", "요크셔테리어", "시츄", "닥스훈트", "파피용", "비숑프리제", "미니어처핀셔", "보더콜리", "진돗개", "불독", "스피츠", "슈나우저", "웰시테리어", "바센지", "휘핏", "보스턴테리어", "셸티", "저먼셰퍼드", "래브라도리트리버", "로트와일러", "그레이트데인", "말라뮤트", "세인트버나드", "아키타", "복서", "뉴펀들랜드", "사자", "호랑이", "늑대", "재규어", "표범", "여우", "빙결의 펜리르", "태양의 레오", "뇌신의 백호", "생명의 구미호", "심연의 아몬", "천공의 라", "명계의 케르베로스"]
-const GRADES := ["소형견", "소형견", "소형견", "중형견", "중형견", "중형견", "대형견", "대형견", "대형견", "대형견", "소형견", "소형견", "소형견", "소형견", "소형견", "소형견", "소형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "맹수", "맹수", "맹수", "맹수", "맹수", "맹수", "신화", "신화", "신화", "신화", "초월", "초월", "초월"]
+const DOGS := ["말티즈", "푸들", "치와와", "비글", "시바견", "코기", "허스키", "골든리트리버", "도베르만", "사모예드", "포메라니안", "요크셔테리어", "시츄", "닥스훈트", "파피용", "비숑프리제", "미니어처핀셔", "보더콜리", "진돗개", "불독", "스피츠", "슈나우저", "웰시테리어", "바센지", "휘핏", "보스턴테리어", "셸티", "저먼셰퍼드", "래브라도리트리버", "로트와일러", "그레이트데인", "말라뮤트", "세인트버나드", "아키타", "복서", "뉴펀들랜드", "사자", "호랑이", "늑대", "재규어", "표범", "여우", "빙결의 펜리르", "태양의 레오", "뇌신의 백호", "생명의 구미호", "심연의 아몬", "천공의 라", "명계의 케르베로스", "아스테리온", "녹티르", "루미엘"]
+const GRADES := ["소형견", "소형견", "소형견", "중형견", "중형견", "중형견", "대형견", "대형견", "대형견", "대형견", "소형견", "소형견", "소형견", "소형견", "소형견", "소형견", "소형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "중형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "대형견", "맹수", "맹수", "맹수", "맹수", "맹수", "맹수", "신화", "신화", "신화", "신화", "초월", "초월", "초월", "히든", "히든", "히든"]
 const RECIPES := [
 	{"result": 3, "materials": [0, 1, 2]},
 	{"result": 4, "materials": [0, 0, 1]},
@@ -99,19 +109,19 @@ const RECIPES := [
 # Beast-exclusive item requirements. A future draw system will grant these items.
 const BEAST_ITEMS := {36: "황금 사자의 문장", 37: "맹호의 송곳니", 38: "달빛 늑대의 인장", 39: "그림자 재규어의 발톱", 40: "질풍 표범의 휘장", 41: "신비한 여우 구슬", 42: "빙결의 룬", 43: "태양의 성배", 44: "뇌신의 번개석", 45: "생명의 여우옥", 46: "심연의 핵", 47: "천공의 성유물", 48: "명계의 봉인석"}
 # Ordinary-dog fusion preserves the ingredients' combined base DPS; high-tier stats stay unchanged.
-const ATTACK := [8,12,6,32,42,27,110,88,146,104,9,8,11,13,7,10,12,33,42,52,32,44,35,30,32,39,37,124,109,167,193,141,191,150,127,159,110,140,90,105,125,95,185,210,175,165,285,260,245]
-const RANGE := [120.0, 150.0, 100.0, 160.0, 140.0, 150.0, 180.0, 200.0, 150.0, 190.0, 125.0, 110.0, 135.0, 135.0, 125.0, 140.0, 115.0, 165.0, 155.0, 130.0, 160.0, 155.0, 145.0, 150.0, 155.0, 140.0, 165.0, 185.0, 195.0, 150.0, 175.0, 180.0, 185.0, 165.0, 160.0, 190.0, 185.0, 160.0, 170.0, 160.0, 180.0, 200.0, 210.0, 185.0, 220.0, 205.0, 210.0, 230.0, 205.0]
-const COOLDOWN := [0.7, 1.0, 0.5, 0.9, 1.2, 0.7, 1.0, 0.8, 1.3, 0.9, 0.65, 0.55, 0.9, 0.9, 0.5, 0.75, 0.7, 0.85, 1.1, 1.3, 0.8, 1.0, 0.8, 0.75, 0.7, 0.9, 0.85, 1.05, 0.9, 1.4, 1.55, 1.1, 1.5, 1.15, 0.95, 1.25, 1.40, 1.55, 0.95, 1.35, 1.00, 1.25, 1.50, 1.55, 1.30, 1.15, 1.55, 1.40, 1.25]
-const DOG_COLORS := [Color("#f9e1a8"), Color("#e7c6fa"), Color("#f7b3a8"), Color("#cfa777"), Color("#c0e6d1"), Color("#f4d394"), Color("#a4c9f3"), Color("#f6e8bc"), Color("#d5a8a0"), Color("#f1f1e6"), Color("#a7d2f0"), Color("#f0b3c7"), Color("#d4e9a9"), Color("#f0c9a0"), Color("#f5d8a0"), Color("#d1d1d1"), Color("#c6d2e0"), Color("#a8d3b7"), Color("#c4b0d0"), Color("#e0a0a0"), Color("#d9c5a0"), Color("#d0c0d0"), Color("#c0d0d0"), Color("#d8c0a0"), Color("#d0c0b0"), Color("#c0c0d0"), Color("#d0d0a0"), Color("#e0c0a0"), Color("#d0d0c0"), Color("#e0a0c0"), Color("#d0a0e0"), Color("#e0c0d0"), Color("#d0e0a0"), Color("#e0d0a0"), Color("#d0a0d0"), Color("#9db6bf"), Color("#e6b44e"), Color("#e47c42"), Color("#a0b0bc"), Color("#906bb3"), Color("#df8bba"), Color("#8fcfdc"), Color("#94d8ff"), Color("#f5c45c"), Color("#c4dcff"), Color("#f3addb"), Color("#7943bb"), Color("#ffe18a"), Color("#9e535d")]
+const ATTACK := [8,12,6,32,42,27,110,88,146,104,9,8,11,13,7,10,12,33,42,52,32,44,35,30,32,39,37,124,109,167,193,141,191,150,127,159,110,140,90,105,125,95,185,210,175,165,285,260,245, 300,280,190]
+const RANGE := [120.0, 150.0, 100.0, 160.0, 140.0, 150.0, 180.0, 200.0, 150.0, 190.0, 125.0, 110.0, 135.0, 135.0, 125.0, 140.0, 115.0, 165.0, 155.0, 130.0, 160.0, 155.0, 145.0, 150.0, 155.0, 140.0, 165.0, 185.0, 195.0, 150.0, 175.0, 180.0, 185.0, 165.0, 160.0, 190.0, 185.0, 160.0, 170.0, 160.0, 180.0, 200.0, 210.0, 185.0, 220.0, 205.0, 210.0, 230.0, 205.0, 250.0,230.0,220.0]
+const COOLDOWN := [0.7, 1.0, 0.5, 0.9, 1.2, 0.7, 1.0, 0.8, 1.3, 0.9, 0.65, 0.55, 0.9, 0.9, 0.5, 0.75, 0.7, 0.85, 1.1, 1.3, 0.8, 1.0, 0.8, 0.75, 0.7, 0.9, 0.85, 1.05, 0.9, 1.4, 1.55, 1.1, 1.5, 1.15, 0.95, 1.25, 1.40, 1.55, 0.95, 1.35, 1.00, 1.25, 1.50, 1.55, 1.30, 1.15, 1.55, 1.40, 1.25, 1.45,1.6,1.3]
+const DOG_COLORS := [Color("#f9e1a8"), Color("#e7c6fa"), Color("#f7b3a8"), Color("#cfa777"), Color("#c0e6d1"), Color("#f4d394"), Color("#a4c9f3"), Color("#f6e8bc"), Color("#d5a8a0"), Color("#f1f1e6"), Color("#a7d2f0"), Color("#f0b3c7"), Color("#d4e9a9"), Color("#f0c9a0"), Color("#f5d8a0"), Color("#d1d1d1"), Color("#c6d2e0"), Color("#a8d3b7"), Color("#c4b0d0"), Color("#e0a0a0"), Color("#d9c5a0"), Color("#d0c0d0"), Color("#c0d0d0"), Color("#d8c0a0"), Color("#d0c0b0"), Color("#c0c0d0"), Color("#d0d0a0"), Color("#e0c0a0"), Color("#d0d0c0"), Color("#e0a0c0"), Color("#d0a0e0"), Color("#e0c0d0"), Color("#d0e0a0"), Color("#e0d0a0"), Color("#d0a0d0"), Color("#9db6bf"), Color("#e6b44e"), Color("#e47c42"), Color("#a0b0bc"), Color("#906bb3"), Color("#df8bba"), Color("#8fcfdc"), Color("#94d8ff"), Color("#f5c45c"), Color("#c4dcff"), Color("#f3addb"), Color("#7943bb"), Color("#ffe18a"), Color("#9e535d"), Color("#8eeaff"),Color("#b090ff"),Color("#ffb3de")]
 # Skill balance v1: independently tuned for MeongRandy, informed by genre mechanics.
 # Per-attack chances are lower for stun than for damage effects to avoid stun-lock.
 # Tier order: small / medium / large. These are editable balance inputs.
 const SKILL_CHANCE := {"소형견": {"crit": 0.12, "bleed": 0.12, "stun": 0.05, "slow": 0.15, "multi": 0.10, "armor": 0.12, "splash": 0.10}, "중형견": {"crit": 0.18, "bleed": 0.18, "stun": 0.08, "slow": 0.22, "multi": 0.16, "armor": 0.18, "splash": 0.16}, "대형견": {"crit": 0.24, "bleed": 0.24, "stun": 0.11, "slow": 0.30, "multi": 0.22, "armor": 0.24, "splash": 0.22}}
 const SKILL_POWER := {"소형견": {"crit": 1.50, "bleed": 0.08, "stun": 0.30, "slow": 0.20, "multi": 0.40, "armor": 0.08, "splash": 0.35, "aura": 0.06}, "중형견": {"crit": 1.75, "bleed": 0.12, "stun": 0.45, "slow": 0.30, "multi": 0.55, "armor": 0.12, "splash": 0.45, "aura": 0.10}, "대형견": {"crit": 2.00, "bleed": 0.16, "stun": 0.60, "slow": 0.40, "multi": 0.70, "armor": 0.16, "splash": 0.55, "aura": 0.15}}
-const SKILL_NAMES := {"crit": "치명타", "bleed": "출혈", "stun": "기절", "slow": "둔화", "multi": "연속타격", "armor": "방어 약화", "splash": "범위 공격", "attack_aura": "공격력 오라", "speed_aura": "공격속도 오라", "heavy": "강력한 일격", "area_stun": "범위 기절", "hp_percent": "최대 체력 비례 피해", "magic_splash": "마법 범위 공격", "magic_res": "마법 저항 약화", "freeze": "빙결", "chain": "연쇄 번개", "burn": "지속 피해", "vulnerable": "받는 피해 증가", "magic_aura": "마법 공격력 오라", "poison": "중독", "cooldown_aura": "재사용 대기시간 감소"}
+const SKILL_NAMES := {"star_collapse":"성핵 붕괴","void_rift":"무음 균열","dream_resonance":"꿈결 공명","crit": "치명타", "bleed": "출혈", "stun": "기절", "slow": "둔화", "multi": "연속타격", "armor": "방어 약화", "splash": "범위 공격", "attack_aura": "공격력 오라", "speed_aura": "공격속도 오라", "heavy": "강력한 일격", "area_stun": "범위 기절", "hp_percent": "최대 체력 비례 피해", "magic_splash": "마법 범위 공격", "magic_res": "마법 저항 약화", "freeze": "빙결", "chain": "연쇄 번개", "burn": "지속 피해", "vulnerable": "받는 피해 증가", "magic_aura": "마법 공격력 오라", "poison": "중독", "cooldown_aura": "재사용 대기시간 감소"}
 # Existing ten original dogs deliberately have no unapproved skills.
 # Indices correspond to DOGS (0..35). The skill set does not change base stats.
-const DOG_SKILLS := {11: ["crit"], 13: ["bleed"], 16: ["speed_aura"], 17: ["speed_aura"], 18: ["crit"], 19: ["stun"], 20: ["slow"], 21: ["bleed"], 22: ["crit"], 23: ["multi"], 24: ["slow"], 25: ["armor"], 26: ["speed_aura"], 27: ["armor"], 28: ["attack_aura"], 29: ["stun", "armor"], 30: ["splash"], 31: ["slow"], 32: ["splash", "slow"], 33: ["crit"], 34: ["multi"], 35: ["attack_aura"], 36: ["splash", "armor"], 37: ["heavy", "bleed"], 38: ["multi", "speed_aura"], 39: ["area_stun", "hp_percent"], 40: ["crit", "slow"], 41: ["magic_splash", "magic_res"], 42: ["magic_splash", "slow", "freeze"], 43: ["splash", "armor", "attack_aura"], 44: ["chain", "stun", "magic_res"], 45: ["burn", "speed_aura", "vulnerable"], 46: ["heavy", "armor", "poison", "hp_percent"], 47: ["magic_splash", "burn", "magic_res", "magic_aura"], 48: ["area_stun", "slow", "speed_aura", "cooldown_aura"]}
+const DOG_SKILLS := {49:["star_collapse"],50:["void_rift"],51:["dream_resonance"],11: ["crit"], 13: ["bleed"], 16: ["speed_aura"], 17: ["speed_aura"], 18: ["crit"], 19: ["stun"], 20: ["slow"], 21: ["bleed"], 22: ["crit"], 23: ["multi"], 24: ["slow"], 25: ["armor"], 26: ["speed_aura"], 27: ["armor"], 28: ["attack_aura"], 29: ["stun", "armor"], 30: ["splash"], 31: ["slow"], 32: ["splash", "slow"], 33: ["crit"], 34: ["multi"], 35: ["attack_aura"], 36: ["splash", "armor"], 37: ["heavy", "bleed"], 38: ["multi", "speed_aura"], 39: ["area_stun", "hp_percent"], 40: ["crit", "slow"], 41: ["magic_splash", "magic_res"], 42: ["magic_splash", "slow", "freeze"], 43: ["splash", "armor", "attack_aura"], 44: ["chain", "stun", "magic_res"], 45: ["burn", "speed_aura", "vulnerable"], 46: ["heavy", "armor", "poison", "hp_percent"], 47: ["magic_splash", "burn", "magic_res", "magic_aura"], 48: ["area_stun", "slow", "speed_aura", "cooldown_aura"]}
 # Beast tier (indices 36..41): initial balance, separate from the existing 36 dogs.
 # These values are design defaults and can be tuned after actual gameplay.
 const BEAST_CHANCE := {"splash": 0.30, "armor": 0.28, "heavy": 0.25, "bleed": 0.30, "multi": 0.30, "area_stun": 0.12, "hp_percent": 0.16, "crit": 0.30, "slow": 0.32, "magic_splash": 0.30, "magic_res": 0.28}
@@ -158,7 +168,7 @@ const BOSS_DURATION: float = 60.0
 const BOSS_HP_MULTIPLIER: float = 20.0 # Legacy reference; actual Step20 boss HP varies by difficulty.
 # Step20: realistic late-wave attack scaling with fixed original unit stats and gacha odds.
 # These are tuning targets, not measured mobile clear rates. At wave 1 every tier is 1x.
-const ENDGAME_TIER_DAMAGE := {"소형견": 1.05, "중형견": 1.30, "대형견": 1.80, "맹수": 3.00, "신화": 6.00, "초월": 11.00}
+const ENDGAME_TIER_DAMAGE := {"히든": 11.00, "소형견": 1.05, "중형견": 1.30, "대형견": 1.80, "맹수": 3.00, "신화": 6.00, "초월": 11.00}
 # Boss HP is 8/11/15/20 times the corresponding difficulty-scaled regular enemy.
 const BOSS_HP_BY_DIFFICULTY := {"쉬움": 8.0, "보통": 11.0, "어려움": 15.0, "지옥": 20.0}
 const BOSS_ARMOR_MULTIPLIER: float = 1.5
@@ -273,7 +283,7 @@ func _load_portraits() -> void:
 	_dog_portraits.clear()
 	_enemy_portraits.clear()
 	sky_art.load_atlases()
-	for i in range(49):
+	for i in range(DOGS.size()):
 		_dog_portraits.append(sky_art.unit_texture(i))
 	for i in range(12):
 		_enemy_portraits.append(sky_art.enemy_texture(i))
@@ -292,8 +302,7 @@ func _ready() -> void:
 	add_child(game_audio)
 	_load_portraits()
 	_build_ui()
-	if persistence_enabled and not OS.has_feature("editor") and not DisplayServer.get_name() == "headless":
-		RunStorage.restore(self)
+	features.build()
 	_refresh()
 
 func _difficulty_stats(key: String = "") -> Dictionary:
@@ -329,6 +338,8 @@ func _select_difficulty(name: String) -> void:
 		return
 	difficulty = name
 	difficulty_confirmed = true
+	if features.start_panel != null: features.start_panel.hide()
+	paused = false
 	if difficulty_panel != null:
 		difficulty_panel.visible = false
 	_refresh()
@@ -465,8 +476,8 @@ func _build_ui() -> void:
 	recipe_button = _make_button("📖 조합 도감", Vector2(360, 1083), Vector2(335, 57), _toggle_recipes)
 	_build_recipe_panel()
 	draw_button = _make_button("🐾 맹수 뽑기 50G", Vector2(22, 1147), Vector2(216, 52), _draw_gacha)
-	mythic_draw_button = _make_button("💠 신화 뽑기 50G", Vector2(250, 1147), Vector2(216, 52), _draw_mythic_gacha)
-	transcendent_draw_button = _make_button("✦ 초월 뽑기 50G", Vector2(478, 1147), Vector2(219, 52), _draw_transcendent_gacha)
+	mythic_draw_button = _make_button("💠 신화 뽑기 100G", Vector2(250, 1147), Vector2(216, 52), _draw_mythic_gacha)
+	transcendent_draw_button = _make_button("✦ 초월 뽑기 200G", Vector2(478, 1147), Vector2(219, 52), _draw_transcendent_gacha)
 	for b in [draw_button, mythic_draw_button, transcendent_draw_button]:
 		b.add_theme_font_size_override("font_size", 22)
 	draw_feedback = Label.new()
@@ -474,7 +485,7 @@ func _build_ui() -> void:
 	draw_feedback.size = Vector2(664, 24)
 	draw_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	draw_feedback.add_theme_font_size_override("font_size", 19)
-	draw_feedback.text = "각 확률: 맹수 3% · 신화 1% · 초월 0.1%"
+	draw_feedback.text = "각 아이템: 맹수 1% · 신화 0.1% · 초월 0.01%"
 	add_child(draw_feedback)
 	draw_info_button = _make_button("🎁 뽑기 정보  ·  보유 아이템", Vector2(22, 1205), Vector2(675, 47), _toggle_draw_info)
 	draw_info_button.add_theme_font_size_override("font_size", 22)
@@ -770,6 +781,7 @@ func _route_point(progress: float) -> Vector2:
 	return ROUTE[segment].lerp(ROUTE[(segment + 1) % ROUTE.size()], fposmod(progress, 1.0))
 
 func _board_input(event: InputEvent) -> void:
+	if game_over or victory or not difficulty_confirmed: return
 	var point := Vector2(-999, -999)
 	if event is InputEventScreenTouch:
 		if not event.pressed:
@@ -787,6 +799,9 @@ func _board_input(event: InputEvent) -> void:
 	if col < 0 or col >= COLS or row < 0 or row >= ROWS:
 		return
 	var cell := row * COLS + col
+	if pending_deploy >= 0:
+		if not features.deploy(pending_deploy,cell): features.toast("배치할 빈 칸을 선택하세요.")
+		return
 	for i in range(dogs.size()):
 		if int(dogs[i]["cell"]) == cell:
 			selected = i
@@ -830,161 +845,32 @@ func _sell_selected() -> void:
 	_refresh()
 
 func _summon() -> void:
-	if game_over or gold < COST or dogs.size() >= COLS * ROWS:
-		return
-	var used: Dictionary = {}
-	for dog in dogs:
-		used[int(dog["cell"])] = true
-	var free: Array[int] = []
-	for cell in range(COLS * ROWS):
-		if not used.has(cell):
-			free.append(cell)
-	if free.is_empty():
-		return
-	gold -= COST
-	_sound("summon")
-	var kind: int = [0, 1, 2, 10, 11, 12, 13, 14, 15, 16][rng.randi_range(0, 9)]
-	var attack_cells: Array[int] = []
-	for candidate in free:
-		if _cell_reaches_path(candidate, float(RANGE[kind])):
-			attack_cells.append(candidate)
-	var candidates: Array[int] = attack_cells if not attack_cells.is_empty() else free
-	dogs.append({"cell": candidates[rng.randi_range(0, candidates.size() - 1)], "kind": kind, "cooldown": 0.0})
-	_refresh()
+	features.summon()
 
 
-# A deterministic reward mapper makes the exact probability boundaries testable.
-# ticket: 0..99999. Each beast item occupies 3000 tickets (3%).
-# gold_ticket: 1..2047. Multipliers 0..10 use descending 1024..1 weights.
-func _draw_reward_for_roll(ticket: int, gold_ticket: int) -> Dictionary:
-	if ticket < 0 or ticket >= DRAW_TICKET_TOTAL:
-		return {}
-	var item_ticket_total: int = DRAW_ITEM_IDS.size() * DRAW_ITEM_TICKETS
-	if ticket < item_ticket_total:
-		var item_slot: int = ticket / DRAW_ITEM_TICKETS
-		return {"type": "item", "item": DRAW_ITEM_IDS[item_slot]}
-	if gold_ticket < 1 or gold_ticket > DRAW_GOLD_WEIGHT_TOTAL:
-		return {}
-	var cumulative: int = 0
-	for multiplier in range(DRAW_GOLD_WEIGHTS.size()):
-		cumulative += DRAW_GOLD_WEIGHTS[multiplier]
-		if gold_ticket <= cumulative:
-			return {"type": "gold", "multiplier": multiplier, "gold": multiplier * DRAW_COST}
-	return {}
+func _draw_reward_for_roll(ticket: int, _legacy_gold_ticket: int = 1) -> Dictionary:
+	return DrawRules.resolve("맹수",ticket)
 
-# Dedicated mythic draw: four 1% item slots, then 96% gold with the same
-# strictly decreasing 0x..10x conditional weighting as the beast draw.
-func _mythic_reward_for_roll(ticket: int, gold_ticket: int) -> Dictionary:
-	if ticket < 0 or ticket >= DRAW_TICKET_TOTAL:
-		return {}
-	var item_total: int = MYTHIC_DRAW_ITEM_IDS.size() * MYTHIC_DRAW_ITEM_TICKETS
-	if ticket < item_total:
-		var slot: int = int(ticket / MYTHIC_DRAW_ITEM_TICKETS)
-		return {"type": "item", "item": MYTHIC_DRAW_ITEM_IDS[slot]}
-	if gold_ticket < 1 or gold_ticket > DRAW_GOLD_WEIGHT_TOTAL:
-		return {}
-	var cumulative: int = 0
-	for multiplier in range(DRAW_GOLD_WEIGHTS.size()):
-		cumulative += int(DRAW_GOLD_WEIGHTS[multiplier])
-		if gold_ticket <= cumulative:
-			return {"type": "gold", "multiplier": multiplier, "gold": multiplier * DRAW_COST}
-	return {}
 
-# Independent transcendent reward mapping. Each item uses 100 of 100,000
-# tickets (exactly 0.1%). Remaining 99,700 tickets enter gold 0..10x.
-func _transcendent_reward_for_roll(ticket: int, gold_ticket: int) -> Dictionary:
-	if ticket < 0 or ticket >= DRAW_TICKET_TOTAL:
-		return {}
-	var item_total: int = TRANSCENDENT_DRAW_ITEM_IDS.size() * TRANSCENDENT_DRAW_ITEM_TICKETS
-	if ticket < item_total:
-		var slot: int = int(ticket / TRANSCENDENT_DRAW_ITEM_TICKETS)
-		return {"type": "item", "item": TRANSCENDENT_DRAW_ITEM_IDS[slot]}
-	if gold_ticket < 1 or gold_ticket > DRAW_GOLD_WEIGHT_TOTAL:
-		return {}
-	var cumulative: int = 0
-	for multiplier in range(DRAW_GOLD_WEIGHTS.size()):
-		cumulative += int(DRAW_GOLD_WEIGHTS[multiplier])
-		if gold_ticket <= cumulative:
-			return {"type": "gold", "multiplier": multiplier, "gold": multiplier * DRAW_COST}
-	return {}
+func _mythic_reward_for_roll(ticket: int, _legacy_gold_ticket: int = 1) -> Dictionary:
+	return DrawRules.resolve("신화",ticket)
+
+
+func _transcendent_reward_for_roll(ticket: int, _legacy_gold_ticket: int = 1) -> Dictionary:
+	return DrawRules.resolve("초월",ticket)
+
 
 func _draw_transcendent_gacha() -> void:
-	if game_over:
-		if draw_feedback != null:
-			draw_feedback.text = "게임 종료: 초월 뽑기를 할 수 없습니다."
-		return
-	if gold < DRAW_COST:
-		if draw_feedback != null:
-			draw_feedback.text = "초월 뽑기 골드 부족! 50G 필요"
-		return
-	var reward: Dictionary = _transcendent_reward_for_roll(rng.randi_range(0, DRAW_TICKET_TOTAL - 1), rng.randi_range(1, DRAW_GOLD_WEIGHT_TOTAL))
-	if reward.is_empty():
-		return
-	gold -= DRAW_COST
-	if reward["type"] == "item":
-		var item_id: int = int(reward["item"])
-		beast_items[item_id] = int(beast_items.get(item_id, 0)) + 1
-		if draw_feedback != null:
-			draw_feedback.text = "초월 획득! %s (%d개)" % [BEAST_ITEMS[item_id], int(beast_items[item_id])]
-	else:
-		var payout: int = int(reward["gold"])
-		gold += payout
-		if draw_feedback != null:
-			draw_feedback.text = "초월 뽑기: 골드 %d배 +%dG" % [int(reward["multiplier"]), payout]
-	_record_draw(reward, "초월")
-	_refresh()
+	features.draw("초월")
+
 
 func _draw_mythic_gacha() -> void:
-	if game_over:
-		if draw_feedback != null:
-			draw_feedback.text = "게임 종료: 신화 뽑기를 할 수 없습니다."
-		return
-	if gold < DRAW_COST:
-		if draw_feedback != null:
-			draw_feedback.text = "신화 뽑기 골드 부족! 50G 필요"
-		return
-	var reward: Dictionary = _mythic_reward_for_roll(rng.randi_range(0, DRAW_TICKET_TOTAL - 1), rng.randi_range(1, DRAW_GOLD_WEIGHT_TOTAL))
-	if reward.is_empty():
-		return
-	gold -= DRAW_COST
-	if reward["type"] == "item":
-		var item_id: int = int(reward["item"])
-		beast_items[item_id] = int(beast_items.get(item_id, 0)) + 1
-		if draw_feedback != null:
-			draw_feedback.text = "신화 획득! %s (%d개)" % [BEAST_ITEMS[item_id], int(beast_items[item_id])]
-	else:
-		var payout: int = int(reward["gold"])
-		gold += payout
-		if draw_feedback != null:
-			draw_feedback.text = "신화 뽑기: 골드 %d배 +%dG" % [int(reward["multiplier"]), payout]
-	_record_draw(reward, "신화")
-	_refresh()
+	features.draw("신화")
+
 
 func _draw_gacha() -> void:
-	if game_over:
-		if draw_feedback != null:
-			draw_feedback.text = "게임 종료: 뽑기를 할 수 없습니다."
-		return
-	if gold < DRAW_COST:
-		if draw_feedback != null:
-			draw_feedback.text = "골드 부족! 50G가 필요합니다."
-		return
-	var reward: Dictionary = _draw_reward_for_roll(rng.randi_range(0, DRAW_TICKET_TOTAL - 1), rng.randi_range(1, DRAW_GOLD_WEIGHT_TOTAL))
-	if reward.is_empty():
-		return # Never deduct gold if reward resolution fails.
-	gold -= DRAW_COST
-	if reward["type"] == "item":
-		var item_id: int = int(reward["item"])
-		beast_items[item_id] = int(beast_items.get(item_id, 0)) + 1
-		if draw_feedback != null:
-			draw_feedback.text = "획득! %s (총 %d개)" % [BEAST_ITEMS[item_id], int(beast_items[item_id])]
-	else:
-		var payout: int = int(reward["gold"])
-		gold += payout
-		if draw_feedback != null:
-			draw_feedback.text = "골드 %d배! +%dG (뽑기 비용 50G)" % [int(reward["multiplier"]), payout]
-	_record_draw(reward, "맹수")
-	_refresh()
+	features.draw("맹수")
+
 
 func _pick_regular_enemy_type() -> String:
 	# Each category has an equal 25% chance; only one category per wave.
@@ -1028,6 +914,7 @@ func _start_boss_round() -> void:
 	wave_enemy_type = "보스"
 	# Boss-only round: remove regular enemies when entering the separate boss phase.
 	enemies.clear()
+	hidden_zones.clear()
 	var stats: Dictionary = _boss_stats(boss_round)
 	enemies.append({"progress": 0.0, "hp": stats["hp"], "max_hp": stats["hp"], "armor": stats["armor"], "magic_res": stats["magic_res"], "move_speed": stats["move_speed"], "enemy_type": "보스", "is_boss": true, "boss_round": boss_round, "effects": {}})
 	_refresh()
@@ -1135,7 +1022,9 @@ func _effective_auras(dog_index: int) -> Dictionary:
 			continue
 		var skills: Array = DOG_SKILLS.get(other_kind, [])
 		var aura_power: float = 0.0
-		if GRADES[other_kind] == "초월":
+		if GRADES[other_kind] == "히든":
+			aura_power = 0.0
+		elif GRADES[other_kind] == "초월":
 			aura_power = float(TRANSCENDENT_POWER["aura"])
 		elif GRADES[other_kind] == "신화":
 			aura_power = float(MYTHIC_POWER["aura"])
@@ -1372,6 +1261,9 @@ func _attack_with_skills(dog_index: int, target: int, auras: Dictionary) -> void
 	var kind: int = int(dogs[dog_index]["kind"])
 	_emit_attack_visual(dog_index, target)
 	var tier: String = GRADES[kind]
+	if tier == "히든":
+		HiddenCombat.attack(self,dog_index,target,auras)
+		return
 	if tier == "초월":
 		_attack_transcendent(dog_index, target, auras)
 		return
@@ -1460,6 +1352,7 @@ func _simulation_step(delta: float) -> void:
 	if game_over:
 		_refresh()
 		return
+	HiddenCombat.tick(self,game_delta)
 	_tick_enemy_effects(game_delta)
 	_clear_defeated()
 	for idx in range(enemies.size() - 1, -1, -1):
@@ -1478,7 +1371,8 @@ func _simulation_step(delta: float) -> void:
 			enemy_positions.append(_route_point(float(enemy["progress"])))
 		for d in range(dogs.size()):
 			var dog_kind: int = int(dogs[d]["kind"])
-			var auras: Dictionary = _cached_auras[d]
+			var auras: Dictionary = _cached_auras[d].duplicate()
+			if float(dogs[d].get("dream_time",0.0))>0.0: auras["speed"] = float(auras["speed"])+0.25
 			dogs[d]["cooldown"] = maxf(0.0, float(dogs[d]["cooldown"]) - game_delta)
 			if float(dogs[d]["cooldown"]) > 0.0:
 				continue
@@ -1503,6 +1397,12 @@ func _simulation_step(delta: float) -> void:
 	_refresh()
 
 func _restart() -> void:
+	features.reset()
+	reserve_units.clear()
+	draw_counts.clear()
+	pity_tickets.clear()
+	hidden_tickets = 0
+	hidden_zones.clear()
 	_last_end_sound = false
 	paused = false
 	simulation_accumulator = 0.0
@@ -1533,7 +1433,7 @@ func _restart() -> void:
 	if draw_info_panel != null:
 		draw_info_panel.visible = false
 	if draw_feedback != null:
-		draw_feedback.text = "맹수 3% · 신화 1% · 초월 0.1% · 골드 0~10배"
+		draw_feedback.text = "골드 0배 70% · 100회마다 조합 아이템 선택권"
 	wave = 0
 	difficulty = "보통"
 	difficulty_confirmed = false
@@ -1568,6 +1468,7 @@ func _refresh() -> void:
 		_sound("victory" if victory else "defeat")
 	if _in_simulation:
 		return
+	features.refresh()
 	if pause_button != null:
 		pause_button.text = "▶" if paused else "Ⅱ"
 	if mission_button != null:
@@ -1603,7 +1504,9 @@ func _refresh() -> void:
 		wave_hud_label.text = "WAVE %d/88\n%s · %s" % [wave + boss_round, "보스 웨이브" if boss_running or boss_pending else "일반 웨이브", difficulty]
 	if boss_running and wave_hud_label != null:
 		wave_hud_label.text = "WAVE %d/88\n보스 %d/8 · %.1f초" % [wave+boss_round,boss_round,maxf(0.0,wave_time_left)]
-	if not difficulty_confirmed:
+	if pending_deploy >= 0:
+		info_label.text = DOGS[pending_deploy]+" 배치 대기 · 빈 칸을 선택하세요. 취소: 보관함"
+	elif not difficulty_confirmed:
 		info_label.text = "난이도 선택 후 게임을 시작하세요."
 	elif victory:
 		info_label.text = "최종 보스 격파! 80 일반 + 8 보스 라운드 승리!"
@@ -1626,15 +1529,15 @@ func _refresh() -> void:
 		info_label.text = "모든 일반 웨이브 완료!"
 	else:
 		info_label.text = "소형견 소환 → 재료 모으기 → 도감 확인 → 상위견 조합!"
-	summon_button.disabled = not difficulty_confirmed or game_over or gold < COST or dogs.size() >= COLS * ROWS
+	summon_button.disabled = not difficulty_confirmed or game_over or victory or gold < COST
 	wave_button.text = "보스 %d 시작" % int(wave / BOSS_INTERVAL) if boss_pending else "웨이브 시작"
 	wave_button.disabled = not difficulty_confirmed or game_over or victory or wave_running or (wave >= MAX_REGULAR_WAVE and not boss_pending)
 	if draw_button != null:
-		draw_button.disabled = game_over or gold < DRAW_COST
+		draw_button.disabled = not difficulty_confirmed or game_over or victory or gold < 50
 	if mythic_draw_button != null:
-		mythic_draw_button.disabled = game_over or gold < DRAW_COST
+		mythic_draw_button.disabled = not difficulty_confirmed or game_over or victory or gold < 100
 	if transcendent_draw_button != null:
-		transcendent_draw_button.disabled = game_over or gold < DRAW_COST
+		transcendent_draw_button.disabled = not difficulty_confirmed or game_over or victory or gold < 200
 	if fusion_button != null:
 		fusion_button.disabled = game_over or selected < 0 or not _has_recipe_for_selected()
 	if recipe_panel != null and recipe_panel.visible:
@@ -2009,7 +1912,10 @@ func _record_draw(reward: Dictionary, category: String = "맹수") -> void:
 	_sound("craft" if reward.get("type", "") == "item" else "coin")
 	var entry: Dictionary = reward.duplicate(true)
 	entry["category"] = category
-	if reward.get("type", "") == "item":
+	if reward.get("type","") == "hidden_ticket":
+		entry["label"] = "히든 선택권 +1 · 뽑기 정보에서 선택"
+		_sound("element_hidden_star")
+	elif reward.get("type", "") == "item":
 		entry["label"] = category + " 전용 아이템 · " + str(BEAST_ITEMS.get(int(reward["item"]), "알 수 없음"))
 	else:
 		entry["label"] = category + " 골드 %d배 · +%dG" % [int(reward.get("multiplier", 0)), int(reward.get("gold", 0))]
@@ -2033,7 +1939,7 @@ func _build_draw_info_panel() -> void:
 	var header := HBoxContainer.new()
 	outer.add_child(header)
 	var title := Label.new()
-	title.text = "뽑기 정보 · 50G"
+	title.text = "뽑기 정보 · 선택권"
 	title.add_theme_font_size_override("font_size", 22)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
@@ -2116,50 +2022,16 @@ func _draw_info_line(message: String, size: int = 19) -> void:
 	draw_info_list.add_child(label)
 
 func _refresh_draw_info() -> void:
-	if draw_info_list == null:
-		return
+	if draw_info_list == null: return
 	if draw_info_list.get_parent().is_interacting(): return
-	var signature: String = draw_info_category + ":" + draw_info_tab + ":" + str(draw_history.size()) + ":" + str(game_over)
-	for item_id in DRAW_ITEM_IDS + MYTHIC_DRAW_ITEM_IDS + TRANSCENDENT_DRAW_ITEM_IDS:
-		signature += ":" + str(int(beast_items.get(item_id, 0)))
-	if signature == draw_info_signature:
-		return
+	var signature: String = str([draw_info_category,draw_info_tab,draw_history,draw_counts,pity_tickets,hidden_tickets,beast_items,game_over,victory])
+	if signature==draw_info_signature: return
 	draw_info_signature = signature
 	for child in draw_info_list.get_children():
 		draw_info_list.remove_child(child)
 		child.queue_free()
-	var active_ids: Array = TRANSCENDENT_DRAW_ITEM_IDS if draw_info_category == "초월" else MYTHIC_DRAW_ITEM_IDS if draw_info_category == "신화" else DRAW_ITEM_IDS
-	if draw_info_tab == "보유 아이템":
-		_draw_info_line(draw_info_category + " 전용 아이템 보유 현황", 23)
-		for item_id in active_ids:
-			var owned: int = int(beast_items.get(item_id, 0))
-			_draw_info_line("%s · %s: %d개" % [DOGS[item_id], str(BEAST_ITEMS[item_id]), owned])
-		_draw_info_line("초월 제작: 신화 2마리 + 맹수 1마리 + 해당 아이템 1개" if draw_info_category == "초월" else "신화 제작: 맹수 3마리 + 해당 아이템 1개" if draw_info_category == "신화" else "맹수 제작: 대형견 3마리 + 해당 아이템 1개", 17)
-		_draw_info_line("재료별 제작 가능 여부는 조합 도감에서 확인", 17)
-	elif draw_info_tab == "최근 결과":
-		_draw_info_line("최근 뽑기 결과 (최대 20회)", 23)
-		if draw_history.is_empty():
-			_draw_info_line("아직 뽑기 기록이 없습니다.")
-		var shown: int = 0
-		for entry in draw_history:
-			if str(entry.get("category", "맹수")) != draw_info_category:
-				continue
-			shown += 1
-			_draw_info_line("%d. %s" % [shown, str(entry["label"])])
-		if shown == 0 and not draw_history.is_empty():
-			_draw_info_line("이 뽑기 유형의 기록이 없습니다.")
-	else:
-		_draw_info_line("확률 안내 · 1회 50G", 23)
-		var item_percent: float = 0.1 if draw_info_category == "초월" else 1.0 if draw_info_category == "신화" else 3.0
-		var gold_percent: float = 99.7 if draw_info_category == "초월" else 96.0 if draw_info_category == "신화" else 82.0
-		_draw_info_line("%s 전용 아이템 총 %.1f%% (%d종 각 %.1f%%)" % [draw_info_category, 100.0 - gold_percent, active_ids.size(), item_percent])
-		for item_id in active_ids:
-			_draw_info_line("%s · %.3f%%" % [str(BEAST_ITEMS[item_id]), float(item_percent)], 17)
-		_draw_info_line("골드 보상 총 %.1f%%" % gold_percent, 21)
-		for multiplier in range(DRAW_GOLD_WEIGHTS.size()):
-			var chance: float = float(gold_percent) * float(DRAW_GOLD_WEIGHTS[multiplier]) / float(DRAW_GOLD_WEIGHT_TOTAL)
-			_draw_info_line("%d배 · %dG  |  %.3f%%" % [multiplier, multiplier * DRAW_COST, chance], 18)
-		_draw_info_line("골드는 뽑기 비용 50G를 먼저 차감한 뒤 지급", 17)
+	features.draw_info()
+
 
 func _cell_reaches_path(cell: int, attack_range: float) -> bool:
 	var center: Vector2 = _cell_center(cell)
@@ -2170,6 +2042,7 @@ func _cell_reaches_path(cell: int, attack_range: float) -> bool:
 	return false
 
 func _unit_is_magic(kind: int) -> bool:
+	if kind>=49: return true
 	var skills: Array = DOG_SKILLS.get(kind, [])
 	if kind >= 42 and kind <= 45:
 		return skills.has("magic_splash") or skills.has("chain") or skills.has("burn")
@@ -2195,9 +2068,17 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		if game_audio != null: game_audio.set_backgrounded(false)
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		_toggle_settings()
+		if is_instance_valid(features.choice_panel) and features.choice_panel.visible: features.close_choice()
+		elif is_instance_valid(features.reserve_panel) and features.reserve_panel.visible: features.close_reserve()
+		elif pending_deploy>=0:
+			pending_deploy=-1
+			_refresh()
+		elif is_instance_valid(features.start_panel) and features.start_panel.visible: pass
+		elif game_over or victory: pass
+		else: _toggle_settings()
 
 func _process(delta: float) -> void:
+	features.tick(delta)
 	if not paused:
 		simulation_accumulator += maxf(0.0, delta) * float(game_speed)
 		var steps: int = 0
@@ -2228,8 +2109,9 @@ func _process(delta: float) -> void:
 		save_clock = 0.0
 		RunStorage.save(self)
 
-const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
+const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell","star","void","dream"]
 func _attack_sound(kind: int) -> String:
+	if kind>=49: return ["magic","attack_shadow","magic"][kind-49]
 	if kind==44: return "element_thunder"
 	if kind==47: return "element_explosion"
 	if kind==42: return "element_ice"

@@ -6,6 +6,7 @@ var atlases: Array[Texture2D] = []
 var regions: Array[Texture2D] = []
 var region_manifest: Array = []
 var legendary_frames: Array[Texture2D] = []
+var hidden_frames: Array[Texture2D] = []
 var apparition_frames: Array[Texture2D] = []
 
 func load_atlases() -> void:
@@ -15,6 +16,7 @@ func load_atlases() -> void:
 		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/unit_regions.json"))
 		if parsed is Array: region_manifest = parsed
 	_load_legendary_art()
+	_load_hidden_art()
 	for sheet in range(8):
 		var path := "res://assets/sky_atlas_%d.png" % sheet
 		var texture: Texture2D = null
@@ -44,6 +46,7 @@ func load_atlases() -> void:
 			regions.append(region)
 
 func unit_texture(kind: int) -> Texture2D:
+	if kind>=49 and kind<=51 and hidden_frames.size()==12: return hidden_frames[(kind-49)*4]
 	return regions[kind] if kind >= 0 and kind < 49 and regions.size() >= 49 else null
 
 func enemy_texture(kind: int) -> Texture2D:
@@ -146,13 +149,16 @@ func draw_battle(game: Control, canvas: CanvasItem) -> void:
 		canvas.draw_rect(Rect2(65, 135, 590, 580), Color(0.08, 0.12, 0.25, 0.25))
 
 
-const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell"]
+const ELITE_STYLES := ["roar","claw","fang","shadow","wind","spirit","ice","sun","lightning","nature","abyss","heaven","hell","star","void","dream"]
 const DOG_HAS_AURA := [16,17,26,28,35,38,43,45,47,48]
 func effect_color(style: String) -> Color:
 	var colors: Dictionary = {"roar":"#ffca57","claw":"#ff8753","fang":"#bad9ff","shadow":"#c29cff","wind":"#d1ffb0","spirit":"#ff9fdd","ice":"#8cffff","sun":"#fff18b","lightning":"#b5d4ff","nature":"#8dffb9","abyss":"#d489ff","heaven":"#fff4bb","hell":"#ff6e6e","bolt":"#ffe3a0"}
 	return Color(colors.get(style,"#d4beff"))
 func _draw_effect(canvas: CanvasItem, fx: Dictionary, game: Control) -> void:
 	if float(fx["age"]) < 0.0: return
+	if int(fx.get("kind",-1))>=49 and not str(fx.get("skill","")).is_empty():
+		game.HiddenCombat.draw(canvas,fx,game)
+		return
 	if not str(fx.get("skill","")).is_empty():
 		SkillEffects.draw(canvas,fx,game)
 		return
@@ -258,7 +264,13 @@ static func legendary_frame_index(phase: float) -> int:
 	return 3
 func draw_unit_pose(canvas: CanvasItem, kind: int, center: Vector2, phase: float, aim: Vector2, height: float=65.0) -> void:
 	var pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
-	if kind>=42 and legendary_frames.size()==28:
+	if kind>=49 and kind<=51 and hidden_frames.size()==12:
+		var hidden_pose: Dictionary = AttackAnimator.sample(kind,aim,phase)
+		canvas.draw_set_transform(center+Vector2(hidden_pose["offset"])*0.4,0,Vector2(-1.0 if aim.x< -0.1 else 1.0,1.0))
+		draw_character(canvas,hidden_frames[(kind-49)*4+legendary_frame_index(phase)],Vector2.ZERO,height*1.2)
+		canvas.draw_set_transform(Vector2.ZERO)
+		return
+	if kind>=42 and kind<49 and legendary_frames.size()==28:
 		var frame: int = legendary_frame_index(phase)
 		var offset: Vector2 = Vector2(pose["offset"])*0.25
 		canvas.draw_set_transform(center+offset,0.0,Vector2(-1.0 if aim.x< -0.1 else 1.0,1.0))
@@ -285,7 +297,7 @@ func _draw_apparition_texture(canvas: CanvasItem, index: int, point: Vector2, wi
 	canvas.draw_set_transform(Vector2.ZERO)
 func draw_legendary_projectile(canvas: CanvasItem, fx: Dictionary) -> void:
 	var kind: int = int(fx["kind"])
-	if kind<42: return
+	if kind<42 or kind>=49: return
 	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
 	var origin: Vector2 = fx["from"]
 	var target: Vector2 = fx["to"]
@@ -293,7 +305,7 @@ func draw_legendary_projectile(canvas: CanvasItem, fx: Dictionary) -> void:
 	_draw_apparition_texture(canvas,kind-42,point,66.0,0.85*(1.0-p),target-origin)
 func draw_legendary_skill(canvas: CanvasItem, fx: Dictionary) -> void:
 	var kind: int = int(fx.get("kind",-1))
-	if kind<42 or not bool(fx.get("apparition",false)): return
+	if kind<42 or kind>=49 or not bool(fx.get("apparition",false)): return
 	var p: float = clampf(float(fx["age"])/float(fx["duration"]),0,1)
 	var origin: Vector2 = fx["from"]
 	var target: Vector2 = fx["to"]
@@ -308,3 +320,15 @@ func draw_legendary_skill(canvas: CanvasItem, fx: Dictionary) -> void:
 	if p>0.35:
 		if kind==42: _draw_apparition_texture(canvas,7,target+Vector2(0,14),155.0,opacity*0.80,Vector2.RIGHT)
 		elif kind in [43,45,47,48]: _draw_apparition_texture(canvas,8,target+Vector2(0,12),145.0,opacity*0.55,Vector2.RIGHT)
+
+func _load_hidden_art() -> void:
+	if not FileAccess.file_exists("res://assets/legendary_regions.json"): return
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/legendary_regions.json"))
+	if not manifest.has("hidden_attack"): return
+	var texture: Texture2D = load("res://assets/hidden_attack.png")
+	for bounds in manifest["hidden_attack"]["regions"]:
+		var region := AtlasTexture.new()
+		region.atlas = texture
+		region.region = Rect2(float(bounds[0]),float(bounds[1]),float(bounds[2]),float(bounds[3]))
+		region.filter_clip = true
+		hidden_frames.append(region)

@@ -23,7 +23,7 @@ packages = adb("shell","pm","list","packages").decode()
 for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
     if ("package:" + stock_app + "\n") in packages:
         adb("shell","pm","disable-user","--user","0",stock_app)
-adb("install", "-r", "build/MeongRandy-0.29.5-debug.apk")
+adb("install", "-r", "build/MeongRandy-0.30.0-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
@@ -48,6 +48,9 @@ if "Pixel Launcher" in hierarchy and "isn" in hierarchy:
             time.sleep(2)
             print("CLOSED_STOCK_LAUNCHER_ANR")
             break
+capture("00-start-screen")
+tap_control("new_game")
+time.sleep(1)
 capture("01-difficulty")
 # Coordinates follow the actual 720x1280 Godot layout.
 tap_control("normal_difficulty")
@@ -55,6 +58,14 @@ time.sleep(2)
 capture("02-selected")
 for _ in range(4):
     tap_control("summon")
+    time.sleep(0.2)
+# Each summon remains in reserve until selected and placed.
+for cell in range(4):
+    tap(585,1040)
+    time.sleep(0.4)
+    tap_control("reserve_pick")
+    time.sleep(0.3)
+    tap(163+77*cell,233)
     time.sleep(0.2)
 tap_control("start_wave")
 time.sleep(15)
@@ -147,6 +158,8 @@ subprocess.run(["adb","shell","run-as "+PKG+" sh -c "+shlex.quote("cat > "+shlex
 runtime_paths=adb("shell","run-as",PKG,"find","files","-name","audio_runtime.json").decode().strip().splitlines()
 for path in runtime_paths: adb("shell","run-as",PKG,"rm",path)
 adb("shell","monkey","-p",PKG,"1")
+time.sleep(12)
+tap_control("continue_game")
 startup_deadline=time.monotonic()+45
 startup_audio={}
 while time.monotonic()<startup_deadline:

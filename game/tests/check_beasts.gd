@@ -13,7 +13,7 @@ func _initialize() -> void:
 func _run() -> void:
 	var names: Array[String] = ["사자", "호랑이", "늑대", "재규어", "표범", "여우"]
 	var skills: Array = [["splash", "armor"], ["heavy", "bleed"], ["multi", "speed_aura"], ["area_stun", "hp_percent"], ["crit", "slow"], ["magic_splash", "magic_res"]]
-	_check(Game.DOGS.size() == 49, "49 units including 6 beasts")
+	_check(Game.DOGS.size() == 52, "52 units including 6 beasts")
 	for i in range(6):
 		var k: int = i + 36
 		_check(Game.DOGS[k] == names[i] and Game.GRADES[k] == "맹수" and Game.DOG_SKILLS[k] == skills[i], "beast %s name, grade and two skills" % names[i])

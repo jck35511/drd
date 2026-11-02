@@ -22,9 +22,9 @@ func _run_checks() -> void:
 	_check(game.draw_history.size() == 2 and game.draw_info_list.get_child_count() >= 3, "recent draw results displayed")
 	game._set_draw_info_tab("확률표")
 	_check(game.draw_info_list.get_child_count() >= 20, "full probability table displayed")
-	var total: float = 18.0
-	for weight in Game.DRAW_GOLD_WEIGHTS:
-		total += 82.0 * float(weight) / float(Game.DRAW_GOLD_WEIGHT_TOTAL)
+	var total: float = 0.0
+	for outcome in Game.DrawRules.TABLES["맹수"]:
+		total += float(outcome["tickets"])/10000.0
 	_check(absf(total - 100.0) < 0.001, "item and gold odds sum to 100 percent")
 	game._restart()
 	_check(game.draw_history.is_empty() and game.beast_items.is_empty(), "restart clears draw history and inventory")

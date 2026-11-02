@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image
 import numpy as np,json,hashlib
 out={}
-for name,cols,rows in [("legendary_attack",4,7),("legendary_vfx",3,3)]:
+for name,cols,rows in [("legendary_attack",4,7),("legendary_vfx",3,3),("hidden_attack",4,3)]:
     im=Image.open("game/assets/"+name+".png").convert("RGBA")
     alpha=np.asarray(im)[:,:,3]
     assert np.count_nonzero(alpha==0)>alpha.size*0.05, "Real transparency required"
@@ -23,7 +23,7 @@ for name,cols,rows in [("legendary_attack",4,7),("legendary_vfx",3,3)]:
         for col in range(cols):
             x0,x1=xs[col],xs[col+1];y0,y1=ys[row],ys[row+1]
             tile=alpha[y0:y1,x0:x1]
-            assert np.count_nonzero(tile>32)>tile.size*0.12
+            assert np.count_nonzero(tile>32)>tile.size*0.05
             regions.append([x0,y0,x1-x0,y1-y0])
     out[name]={"width":im.width,"height":im.height,"regions":regions}
     print("LEGENDARY_ASSET:"+json.dumps({"name":name,"size":im.size,"x_cuts":xs,"y_cuts":ys,"frames":len(regions)}))

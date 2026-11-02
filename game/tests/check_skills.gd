@@ -14,14 +14,14 @@ func _run_checks() -> void:
 	var failures: Array[String] = []
 	if script_ref.COLS != 6 or script_ref.ROWS != 6:
 		failures.append("board is not 6x6")
-	if script_ref.DOGS.size() != 49 or script_ref.DOG_COLORS.size() != 49:
-		failures.append("data is not 49 units")
+	if script_ref.DOGS.size() != 52 or script_ref.DOG_COLORS.size() != 52:
+		failures.append("data is not 52 units")
 	var expected: Dictionary = {"소형견": 10, "중형견": 13, "대형견": 13}
 	for tier in expected.keys():
 		if not script_ref.SKILL_CHANCE.has(tier) or not script_ref.SKILL_POWER.has(tier):
 			failures.append("missing skill balance tier: " + str(tier))
 	for kind in script_ref.DOG_SKILLS.keys():
-		if int(kind) < 0 or int(kind) >= 49:
+		if int(kind) < 0 or int(kind) >= 52:
 			failures.append("invalid skill unit index: " + str(kind))
 		for skill in script_ref.DOG_SKILLS[kind]:
 			if not script_ref.SKILL_NAMES.has(skill):

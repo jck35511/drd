@@ -1,53 +1,59 @@
 extends SceneTree
 const Game = preload("res://main.gd")
-var fails: int = 0
-func check(ok: bool, text: String) -> void:
-    print(("PASS: " if ok else "FAIL: ") + text)
-    if not ok:
-        fails += 1
+const Rules = preload("res://scripts/draw_rules.gd")
 func _initialize() -> void:
-    call_deferred("run_checks")
-func run_checks() -> void:
-    var game: Control = Game.new()
-    check(Game.MYTHIC_DRAW_ITEM_IDS.size() == 4 and Game.MYTHIC_DRAW_ITEM_TICKETS == 1000, "four mythic items at exactly 1% each")
-    check(Game.DRAW_ITEM_IDS.size() == 6 and Game.DRAW_ITEM_TICKETS == 3000, "beast gacha remains 3% each")
-    var counts: Dictionary = {}
-    for ticket in range(4000):
-        var out: Dictionary = game._mythic_reward_for_roll(ticket, 1)
-        var k: int = int(out.get("item", -1))
-        counts[k] = int(counts.get(k, 0)) + 1
-    var ok: bool = counts.size() == 4
-    for k in Game.MYTHIC_DRAW_ITEM_IDS:
-        ok = ok and int(counts.get(k, 0)) == 1000
-    check(ok, "exactly 1000 tickets per mythic item")
-    ok = true
-    var cumulative: int = 0
-    for multiplier in range(11):
-        cumulative += int(Game.DRAW_GOLD_WEIGHTS[multiplier])
-        var reward: Dictionary = game._mythic_reward_for_roll(99999, cumulative)
-        ok = ok and reward.get("type") == "gold" and int(reward.get("multiplier", -1)) == multiplier and int(reward.get("gold", -1)) == multiplier * 50
-    check(ok and cumulative == 2047, "remaining 96% gold supports 0x..10x decreasing")
-    check(game._mythic_reward_for_roll(-1, 1).is_empty(), "invalid ticket rejected")
-    game.gold = 49
-    game._draw_mythic_gacha()
-    check(game.gold == 49 and game.beast_items.is_empty(), "insufficient gold never consumes")
-    game.gold = 100
-    game.game_over = true
-    game._draw_mythic_gacha()
-    check(game.gold == 100, "game over blocks mythic draw")
-    game.game_over = false
-    game.rng.seed = 456
-    game._draw_mythic_gacha()
-    check(game.gold >= 50 and game.gold <= 550 or not game.beast_items.is_empty(), "mythic draw pays or grants item")
-    game.free()
-    var ui: Control = Game.new()
-    get_root().add_child(ui)
-    check(ui.mythic_draw_button != null and ui.draw_button != null, "beast and mythic draw buttons separate")
-    ui._set_draw_info_category("신화")
-    ui._set_draw_info_tab("확률표")
-    check(ui.draw_info_list.get_child_count() >= 18, "mythic 1% and gold 96% probability table")
-    ui._set_draw_info_tab("보유 아이템")
-    check(ui.draw_info_list.get_child_count() >= 6, "four mythic items in inventory")
-    ui.queue_free()
-    print("MYTHIC GACHA RESULT: %d failures" % fails)
-    quit(0 if fails == 0 else 1)
+	call_deferred("run")
+func run() -> void:
+	var category: String = "신화"
+	var total: int = 0
+	var items: int = 0
+	var last_gold: int = Rules.TOTAL
+	for outcome in Rules.TABLES[category]:
+		var n: int = int(outcome["tickets"])
+		assert(Rules.resolve(category,total)==outcome)
+		assert(Rules.resolve(category,total+n-1)==outcome)
+		if outcome["type"]=="gold":
+			assert(n<last_gold)
+			last_gold=n
+			assert(int(outcome["gold"])==int(outcome["multiplier"])*100)
+			if int(outcome["multiplier"])==0: assert(n==700000)
+		elif outcome["type"]=="hidden_ticket": assert(n==10)
+		else:
+			assert(n==1000)
+			items+=1
+		total+=n
+	assert(total==1000000 and items==4)
+	assert(Rules.resolve(category,-1).is_empty() and Rules.resolve(category,total).is_empty())
+	var g: Control = Game.new()
+	g.persistence_enabled=false
+	g.gold=100-1
+	g.features.draw(category)
+	assert(g.gold==100-1 and g.draw_counts.is_empty())
+	g.gold=100000
+	g.rng.seed=987
+	g.draw_counts[category]=99
+	g.features.draw(category)
+	assert(int(g.draw_counts[category])==100 and int(g.pity_tickets[category])==1)
+	assert(g.draw_history[0]["pity"])
+	for i in range(100): g.features.draw(category)
+	assert(int(g.draw_counts[category])==200 and int(g.pity_tickets[category])==2)
+	assert(g.draw_counts.size()==1)
+	var id: int = 42
+	var before: int = int(g.beast_items.get(id,0))
+	assert(not g.features.choose_item(category,0))
+	assert(g.features.choose_item(category,id))
+	assert(int(g.beast_items[id])==before+1 and int(g.pity_tickets[category])==1)
+	var snapshot: int = g.gold
+	g.victory=true
+	g.features.draw(category)
+	assert(g.gold==snapshot and int(g.draw_counts[category])==200)
+	g.victory=false
+	g.game_over=true
+	g.features.draw(category)
+	assert(g.gold==snapshot)
+	g.game_over=false
+	g._restart()
+	assert(g.draw_counts.is_empty() and g.pity_tickets.is_empty() and g.hidden_tickets==0)
+	g.free()
+	print("PASS: 신화 exact odds, boundaries, cost, repeating independent pity, choices and end guards")
+	quit()

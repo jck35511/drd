@@ -9,7 +9,7 @@ func check(ok: bool, label: String) -> void:
 func _initialize() -> void:
     call_deferred("_test")
 func _test() -> void:
-    check(Game.DOGS.size() == 49, "49 units")
+    check(Game.DOGS.size() == 52, "52 units")
     var expected: Array[String] = ["빙결의 펜리르", "태양의 레오", "뇌신의 백호", "생명의 구미호"]
     var skills: Array = [["magic_splash", "slow", "freeze"], ["splash", "armor", "attack_aura"], ["chain", "stun", "magic_res"], ["burn", "speed_aura", "vulnerable"]]
     for i in range(4):
@@ -18,7 +18,7 @@ func _test() -> void:
         check(Game.ATTACK[k] > 0 and Game.COOLDOWN[k] > 0 and Game.RANGE[k] > 0, "mythic base stats: " + expected[i])
     check(Game.RECIPES.size() == 39, "32 originals plus 4 mythic and 3 transcendent recipes")
     var game: Control = Game.new()
-    check(game._draw_reward_for_roll(0, 1).get("item", -1) == 36 and Game.DRAW_COST == 50, "Step8 draw unchanged")
+    check(game._draw_reward_for_roll(700010, 1).get("item", -1) == 36 and Game.DRAW_COST == 50, "beast item interval and 50G cost")
     game.enemies.append({"progress": 0.0, "hp": 500.0, "max_hp": 500.0, "effects": {}})
     game._apply_status(0, "freeze", 0.75)
     check(game.enemies[0]["effects"].has("freeze"), "freeze status stored")

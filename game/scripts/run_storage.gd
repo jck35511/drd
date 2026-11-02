@@ -1,7 +1,7 @@
 extends RefCounted
 const PATH: String = "user://sky_castle_save.json"
 const VERSION: int = 1
-const FIELDS: Array[String] = ["gold", "wave", "boss_round", "boss_pending", "boss_running", "wave_running", "auto_advance_pending", "wave_time_left", "spawn_left", "spawn_clock", "wave_enemy_type", "difficulty", "difficulty_confirmed", "dogs", "enemies", "beast_items", "first_beast_claimed", "first_mythic_claimed", "first_transcendent_claimed", "last_completed_wave", "game_speed", "game_over", "victory", "simulation_accumulator"]
+const FIELDS: Array[String] = ["gold", "wave", "boss_round", "boss_pending", "boss_running", "wave_running", "auto_advance_pending", "wave_time_left", "spawn_left", "spawn_clock", "wave_enemy_type", "difficulty", "difficulty_confirmed", "dogs", "enemies", "beast_items", "first_beast_claimed", "first_mythic_claimed", "first_transcendent_claimed", "last_completed_wave", "game_speed", "game_over", "victory", "simulation_accumulator", "reserve_units", "draw_counts", "pity_tickets", "hidden_tickets", "draw_history", "hidden_zones"]
 
 static func save(game: Control) -> bool:
 	if game.game_over or game.victory:
@@ -35,6 +35,13 @@ static func restore(game: Control) -> bool:
 	if not int(data.get("game_speed", 0)) in [1, 2, 3]: return false
 	if not data.get("beast_items", {}) is Dictionary: return false
 	if not data.get("first_transcendent_claimed", {}) is Dictionary: return false
+	for field in ["reserve_units","draw_counts","pity_tickets"]:
+		if not data.get(field,{}) is Dictionary: return false
+	for key in data.get("reserve_units",{}):
+		if int(key)<0 or int(key)>=game.DOGS.size() or int(data["reserve_units"][key])<0: return false
+	if int(data.get("hidden_tickets",0))<0: return false
+	for field in ["draw_history","hidden_zones"]:
+		if not data.get(field,[]) is Array: return false
 	var saved_dogs: Variant = data.get("dogs", [])
 	var saved_enemies: Variant = data.get("enemies", [])
 	if not saved_dogs is Array or not saved_enemies is Array: return false
@@ -44,7 +51,7 @@ static func restore(game: Control) -> bool:
 		if not dog is Dictionary: return false
 		var cell: int = int(dog.get("cell", -1))
 		var kind: int = int(dog.get("kind", -1))
-		if cell < 0 or cell >= 36 or kind < 0 or kind >= 49 or used.has(cell): return false
+		if cell < 0 or cell >= 36 or kind < 0 or kind >= game.DOGS.size() or used.has(cell): return false
 		if not dog.has("cooldown") or not (dog["cooldown"] is float or dog["cooldown"] is int): return false
 		used[cell] = true
 	for enemy in saved_enemies:
@@ -52,7 +59,7 @@ static func restore(game: Control) -> bool:
 		for field in ["hp", "max_hp", "progress"]:
 			if not enemy.has(field): return false
 	for field in FIELDS:
-		if not data.has(field) or field in ["dogs", "enemies", "beast_items", "first_transcendent_claimed"]: continue
+		if not data.has(field) or field in ["dogs", "enemies", "beast_items", "first_transcendent_claimed","reserve_units","draw_history","hidden_zones"]: continue
 		game.set(field, data[field])
 	game.dogs.clear()
 	for dog in saved_dogs: game.dogs.append(dog)
@@ -62,6 +69,14 @@ static func restore(game: Control) -> bool:
 	for key in data.get("beast_items", {}): game.beast_items[int(key)] = int(data["beast_items"][key])
 	game.first_transcendent_claimed.clear()
 	for key in data.get("first_transcendent_claimed", {}): game.first_transcendent_claimed[int(key)] = bool(data["first_transcendent_claimed"][key])
+	game.reserve_units.clear()
+	for key in data.get("reserve_units",{}): game.reserve_units[int(key)]=int(data["reserve_units"][key])
+	game.draw_history.clear()
+	for entry in data.get("draw_history",[]): game.draw_history.append(entry)
+	game.hidden_zones.clear()
+	for entry in data.get("hidden_zones",[]): game.hidden_zones.append(entry)
+	game.pending_deploy = -1
+	if game.features.start_panel != null: game.features.start_panel.hide()
 	game.rng.state = int(data.get("rng_state", "0"))
 	game.selected = -1
 	game.paused = true
