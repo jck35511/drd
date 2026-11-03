@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#5696e8"/><stop offset="1" stop-color="#183569"/></linearGradient><linearGradient id="gold" x2="0" y2="1"><stop stop-color="#fff0bb"/><stop offset="1" stop-color="#d39a37"/></linearGradient></defs>
+<rect x="12" y="12" width="488" height="488" rx="112" fill="url(#sky)" stroke="url(#gold)" stroke-width="18"/>
+<path d="M95 146L256 84L417 146L402 304Q379 390 256 438Q133 390 110 304Z" fill="#e7effc" stroke="#e9bd62" stroke-width="13"/>
+<path d="M188 326Q172 309 188 282L222 241Q256 212 290 241L324 282Q340 309 324 326Q310 340 288 331Q256 319 224 331Q202 340 188 326Z" fill="#254b87"/>
+<ellipse cx="177" cy="227" rx="23" ry="31" fill="#254b87" transform="rotate(-25 177 227)"/>
+<ellipse cx="224" cy="194" rx="23" ry="32" fill="#254b87" transform="rotate(-10 224 194)"/>
+<ellipse cx="288" cy="194" rx="23" ry="32" fill="#254b87" transform="rotate(10 288 194)"/>
+<ellipse cx="335" cy="227" rx="23" ry="31" fill="#254b87" transform="rotate(25 335 227)"/>
+<path d="M213 114L227 143H285L299 114L276 126L256 101L236 126Z" fill="#e3b45b"/>
+<path d="M256 363L264 380L283 382L269 395L272 414L256 405L240 414L243 395L229 382L248 380Z" fill="#dca94a"/>
+</svg>

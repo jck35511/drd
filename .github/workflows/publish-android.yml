@@ -1,0 +1,64 @@
+name: Publish verified Android download
+on:
+  push:
+    branches: ["codex/sky-castle-step29"]
+    paths: [".github/workflows/publish-android.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: jck35511/drd
+      VERIFIED_RUN: "41436201325"
+      VERIFIED_SHA: "0e7607596bd3425f10740a418e24c204a05a37f2"
+    steps:
+      - name: Verify successful build and download its original files
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/actions/runs/$VERIFIED_RUN" > run.json
+          python3 - <<'PY'
+          import json,os
+          run=json.load(open("run.json"))
+          assert run["status"]=="completed" and run["conclusion"]=="success"
+          assert run["head_sha"]==os.environ["VERIFIED_SHA"]
+          PY
+          gh run download "$VERIFIED_RUN" -R "$GH_REPO" -n MeongRandy-Step29-Android-and-source --dir build
+          sha256sum -c build/SHA256SUMS.txt
+      - name: Upload and verify draft assets before publishing fixed download URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/compare/$VERIFIED_SHA...$GITHUB_SHA" > changes.json
+          python3 - <<'PY'
+          import json
+          files=json.load(open("changes.json"))["files"]
+          assert len(files)<300
+          for item in files:
+              path=item["filename"]
+              assert path.startswith(("game/tests/","docs/",".github/")), path
+          PY
+          gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.30.0"]
+          assert len(releases)==1
+          release=releases[0]
+          assert release["draft"], "Refusing to change a published release"
+          assets={a["name"]:a for a in release["assets"]}
+          for name in ["MeongRandy-0.30.0-debug.apk","MeongRandy-Step29-source.zip","SHA256SUMS.txt"]:
+              data=pathlib.Path("build",name).read_bytes()
+              assert assets[name]["state"]=="uploaded"
+              assert assets[name]["size"]==len(data)
+              assert assets[name]["digest"]=="sha256:"+hashlib.sha256(data).hexdigest()
+          pathlib.Path("release-id.txt").write_text(str(release["id"]))
+          PY
+          release_id=$(cat release-id.txt)
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -f target_commitish="$GITHUB_SHA" -F draft=false -F prerelease=true --jq '{url: .html_url, draft: .draft, assets: [.assets[] | {name, browser_download_url}]}'
