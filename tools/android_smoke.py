@@ -240,6 +240,8 @@ adb("shell","wm","size","720x1600")
 time.sleep(3)
 capture("05-tall-screen")
 
+adb("shell","wm","size","720x1280")
+time.sleep(1)
 # Exercise both real result transitions from deterministic test-only save fixtures.
 # No production code or resource replacement occurs on the device.
 def launch_end_fixture(win):

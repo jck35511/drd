@@ -68,8 +68,8 @@ static func create(g: Control, kind: String, z: int) -> PanelContainer:
 	canvas.add_child(art)
 	# The presentation caption is not part of the playable screen.
 	var footer := ColorRect.new()
-	footer.position=Vector2(160,1430 if kind=="victory" else 1454)
-	footer.size=Vector2(704,70)
+	footer.position=Vector2(160,1468 if kind=="defeat" else 1430 if kind=="victory" else 1454)
+	footer.size=Vector2(704,60 if kind=="defeat" else 70)
 	footer.color=Color("#111c31")
 	footer.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	canvas.add_child(footer)
