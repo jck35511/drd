@@ -10,6 +10,9 @@ func snap(name: String) -> void:
 	picture.save_png("res://previews/" + name + ".png")
 	picture.resize(360,640)
 	print("UI_PREVIEW_" + name + ":" + Marshalls.raw_to_base64(picture.save_png_to_buffer()))
+func bounds(control: Control) -> Dictionary:
+	var rect: Rect2=control.get_global_rect()
+	return {"x":rect.position.x,"y":rect.position.y,"width":rect.size.x,"height":rect.size.y}
 func run() -> void:
 	root.size = Vector2i(720,1280)
 	var g: Control = Game.new()
@@ -21,8 +24,10 @@ func run() -> void:
 	await process_frame
 	var layout: Dictionary = {}
 	for pair in [["new_game","NewGame"],["continue_game","Resume"]]:
-		var child: Control=g.features.start_panel.get_node("Canvas/"+str(pair[1]))
-		layout[pair[0]]={"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
+		var child: Control=g.features.start_panel.get_node("Holder/Canvas/"+str(pair[1]))
+		layout[pair[0]]=bounds(child)
+	for pair in [["title_catalog","Catalog"],["title_settings","Settings"]]:
+		layout[pair[0]]=bounds(g.features.start_panel.get_node("Holder/Canvas/"+str(pair[1])))
 	await snap("start-screen")
 	g.features.new_game()
 	await process_frame
@@ -37,6 +42,7 @@ func run() -> void:
 	await snap("summon-reserve")
 	var pick: Control=g.features.reserve_list.get_child(0).get_child(1)
 	layout["reserve_pick"]={"x":pick.global_position.x,"y":pick.global_position.y,"width":pick.size.x,"height":pick.size.y}
+	layout["reserve_stash"]=bounds(g.features.stash_button)
 	g.features.close_reserve()
 	g.reserve_units.clear()
 	g.hidden_tickets=1
@@ -57,14 +63,22 @@ func run() -> void:
 	g.features.toast("초월 골드 3배 · +600G\n천장! 초월 조합 아이템 선택권 +1")
 	await snap("draw-result-popup")
 	g.features.tick(3)
+	g.wave=57
+	g.bosses_defeated=5
 	g.game_over=true
 	g._refresh()
 	await snap("defeat-retry")
+	layout["defeat_retry"]=bounds(g.features.result_panel.get_node("Holder/Canvas/Retry"))
+	layout["defeat_home"]=bounds(g.features.result_panel.get_node("Holder/Canvas/Home"))
 	g.features.new_game()
 	g._select_difficulty("보통")
+	g.wave=80
+	g.bosses_defeated=8
 	g.victory=true
 	g._refresh()
 	await snap("victory-retry")
+	layout["victory_retry"]=bounds(g.features.result_panel.get_node("Holder/Canvas/Retry"))
+	layout["victory_home"]=bounds(g.features.result_panel.get_node("Holder/Canvas/Home"))
 	g.features.new_game()
 	g._select_difficulty("보통")
 	g._toggle_recipes()

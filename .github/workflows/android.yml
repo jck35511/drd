@@ -26,12 +26,17 @@ jobs:
       - name: Check approved artwork source before allowing APK export
         id: approved-art
         run: |
-          if [ -f game/assets/screens/approved-layout.png ]; then
+          if [ -f game/assets/screens/start.png ] && [ -f game/assets/screens/victory.png ] && [ -f game/assets/screens/defeat.png ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Exact approved artwork file is pending; verify functions without exporting a replacement design."
+            echo "Approved standalone screen assets are missing."
           fi
+      - name: Verify original approved screen bytes
+        run: |
+          test "$(git hash-object game/assets/screens/start.png)" = ec1fe5de31d4a484b252696a114cc1c39802f135
+          test "$(git hash-object game/assets/screens/victory.png)" = 4dda21275f2e467d2d86098bea899b8fbacee9cf
+          test "$(git hash-object game/assets/screens/defeat.png)" = a3f99e9c07b9a215e09af3feccc912ba097172b0
       - name: Inspect all atlas boundaries
         run: |
           python3 -m pip install Pillow numpy scipy

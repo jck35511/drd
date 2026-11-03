@@ -69,6 +69,15 @@ if "Pixel Launcher" in hierarchy and "isn" in hierarchy:
             print("CLOSED_STOCK_LAUNCHER_ANR")
             break
 capture("00-start-screen")
+tap_control("title_catalog")
+time.sleep(1)
+capture("00a-title-catalog")
+tap_control("recipe_close")
+tap_control("title_settings")
+time.sleep(1)
+capture("00b-title-settings")
+adb("shell","input","keyevent","KEYCODE_BACK")
+time.sleep(0.5)
 tap_control("new_game")
 time.sleep(1)
 capture("01-difficulty")
@@ -87,6 +96,17 @@ for cell in range(4):
     time.sleep(0.3)
     tap(163+77*cell,233)
     time.sleep(0.2)
+# Withdraw a real deployed unit and place it again using the on-device buttons.
+tap(163,233)
+tap(585,1040)
+time.sleep(0.5)
+tap_control("reserve_stash")
+time.sleep(0.4)
+capture("02a-withdrawn-to-reserve")
+tap_control("reserve_pick")
+time.sleep(0.3)
+tap(163,233)
+time.sleep(0.4)
 tap_control("start_wave")
 time.sleep(15)
 capture("03-gameplay")
@@ -219,6 +239,53 @@ time.sleep(2)
 adb("shell","wm","size","720x1600")
 time.sleep(3)
 capture("05-tall-screen")
+
+# Exercise both real result transitions from deterministic test-only save fixtures.
+# No production code or resource replacement occurs on the device.
+def launch_end_fixture(win):
+    adb("shell","am","force-stop",PKG)
+    scenario=json.loads(fixture)
+    scenario.update({"wave":80 if win else 57,"boss_round":8 if win else 6,
+        "bosses_defeated":7 if win else 5,"boss_running":True,"wave_running":True,
+        "wave_time_left":30.0 if win else 0.2,"game_over":False,"victory":False,
+        "spawn_left":0,"auto_advance_pending":False,"difficulty_confirmed":True})
+    for enemy in scenario["enemies"]:
+        enemy["hp"]=1.0 if win else 10000000.0
+        enemy["max_hp"]=enemy["hp"]
+    for dog in scenario["dogs"]: dog["cooldown"]=0.0
+    payload=json.dumps(scenario).encode()
+    subprocess.run(["adb","shell","run-as "+PKG+" sh -c "+shlex.quote("cat > "+shlex.quote(save_path[0]))],input=payload,check=True)
+    adb("shell","monkey","-p",PKG,"1")
+    time.sleep(12)
+    tap_control("continue_game")
+    time.sleep(2)
+    tap(615,40)
+    deadline=time.monotonic()+15
+    while time.monotonic()<deadline:
+        saved=adb("shell","run-as",PKG,"find","files","-name","sky_castle_save.json").strip()
+        if not saved: break
+        time.sleep(0.5)
+    else: raise AssertionError("End fixture did not finish: "+str(win))
+    capture("14-victory-original" if win else "13-defeat-original")
+launch_end_fixture(False)
+tap_control("defeat_retry")
+time.sleep(1)
+capture("13a-defeat-retry-difficulty")
+launch_end_fixture(True)
+tap_control("victory_home")
+time.sleep(1)
+capture("14a-result-to-title")
+tap_control("new_game")
+time.sleep(1)
+capture("14b-title-to-difficulty")
+# Compare retry destinations to the original difficulty screen; no stale game state.
+for name in ["13a-defeat-retry-difficulty","14b-title-to-difficulty"]:
+    expected=Image.open(OUT/"01-difficulty.png").convert("RGB").crop((80,300,640,1000))
+    actual=Image.open(OUT/(name+".png")).convert("RGB").crop((80,300,640,1000))
+    diff=ImageChops.difference(expected,actual)
+    from PIL import ImageStat
+    assert sum(ImageStat.Stat(diff).mean)/3 < 12, "Retry did not show difficulty selection: "+name
+
 logs = adb("logcat", "-d").decode("utf-8", "replace")
 (OUT / "logcat.txt").write_text(logs)
 log_lines = logs.splitlines()

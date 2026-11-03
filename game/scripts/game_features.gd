@@ -384,7 +384,7 @@ func title_settings() -> void:
 func go_home() -> void:
 	if is_instance_valid(result_panel): result_panel.hide()
 	g.paused=true
-	start_panel.get_node("Canvas/Resume").disabled=not FileAccess.file_exists(g.RunStorage.PATH)
+	start_panel.get_node("Holder/Canvas/Resume").disabled=not FileAccess.file_exists(g.RunStorage.PATH)
 	start_panel.show()
 func catalog_special(parent: Control, grade: String, owned: Dictionary) -> void:
 	for kind in sorted_kinds():
