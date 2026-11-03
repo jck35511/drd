@@ -65,6 +65,12 @@ func run() -> void:
 	g._craft_recipe_from_catalog(4)
 	assert(g.dogs.size()==36 and int(g.dogs.back()["kind"])==4 and int(g.dogs.back()["cell"])==12)
 	assert(g.reserve_units.is_empty())
+	# A matching field ingredient frees its cell on a full board.
+	g.dogs[12]["kind"]=0
+	g.reserve_units={0:1,1:1}
+	g._craft_recipe_from_catalog(4)
+	assert(g.dogs.size()==36 and int(g.dogs.back()["kind"])==4)
+	assert(g.reserve_units.is_empty())
 	# Missing duplicate preserves the entire inventory and selected field unit.
 	g.dogs.clear()
 	g.reserve_units={0:1,1:1}

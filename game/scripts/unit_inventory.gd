@@ -13,16 +13,17 @@ static func plan(g: Control, recipe: Dictionary, required_selected: bool) -> Dic
 		remaining.erase(selected_kind)
 	for value in remaining:
 		var kind: int = int(value)
-		if int(g.reserve_units.get(kind,0)) > int(reserve.get(kind,0)):
-			reserve[kind] = int(reserve.get(kind,0))+1
-			continue
 		var found: int = -1
 		for i in range(g.dogs.size()):
 			if not field.has(i) and int(g.dogs[i]["kind"]) == kind:
 				found = i
 				break
-		if found < 0: return {}
-		field.append(found)
+		if found >= 0:
+			field.append(found)
+		elif int(g.reserve_units.get(kind,0)) > int(reserve.get(kind,0)):
+			reserve[kind] = int(reserve.get(kind,0))+1
+		else:
+			return {}
 	return {"field":field,"reserve":reserve}
 
 static func add(g: Control, kind: int, state: Dictionary = {}) -> void:
