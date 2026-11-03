@@ -169,7 +169,7 @@ func _run() -> void:
     _check(game.recipe_button != null and game.fusion_button != null, "fusion and catalog buttons initialize")
     game.recipe_panel.visible = true
     game._refresh_recipes()
-    _check(game.recipe_list.get_child_count() == 39, "catalog renders 39 recipes")
+    _check(game.recipe_list.get_child_count() == 10, "catalog starts with 10 small dogs")
     game._set_recipe_filter("중형견")
     _check(game.recipe_list.get_child_count() == 13, "medium filter renders 13")
     game._set_recipe_filter("대형견")

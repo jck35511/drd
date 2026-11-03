@@ -1,10 +1,13 @@
 extends Control
 const BalanceRules = preload("res://scripts/balance_rules.gd")
+const Inventory = preload("res://scripts/unit_inventory.gd")
 const Features = preload("res://scripts/game_features.gd")
 const DrawRules = preload("res://scripts/draw_rules.gd")
 const HiddenCombat = preload("res://scripts/hidden_combat.gd")
 var features = Features.new(self)
 var reserve_units: Dictionary = {}
+var reserve_states: Dictionary = {}
+var bosses_defeated: int = 0
 var pending_deploy: int = -1
 var draw_counts: Dictionary = {}
 var pity_tickets: Dictionary = {}
@@ -246,7 +249,7 @@ var recipe_button: Button
 var recipe_panel: PanelContainer
 var recipe_list: VBoxContainer
 var recipe_feedback: Label
-var recipe_filter: String = "전체"
+var recipe_filter: String = "소형견"
 var recipe_last_signature: String = ""
 var draw_button: Button
 var mythic_draw_button: Button
@@ -931,6 +934,7 @@ func _complete_boss_round(defeated: bool) -> void:
 	spawn_left = 0
 	spawn_clock = 0.0
 	if defeated:
+		bosses_defeated += 1
 		if boss_round >= MAX_BOSS_ROUNDS and wave >= MAX_REGULAR_WAVE:
 			victory = true
 		else:
@@ -971,8 +975,6 @@ func _complete_regular_wave() -> void:
 	auto_advance_pending = true
 	var earned: int = _wave_completion_reward(wave)
 	gold += earned
-	var milestone: String = BalanceRules.grant_milestone(self,wave)
-	if not milestone.is_empty(): features.toast("라운드 %d 보상 · %s" % [wave,milestone])
 	last_economy_notice = "일반 %d웨이브 클리어 +%dG" % [wave, earned]
 	_refresh()
 
@@ -1403,6 +1405,8 @@ func _simulation_step(delta: float) -> void:
 func _restart() -> void:
 	features.reset()
 	reserve_units.clear()
+	reserve_states.clear()
+	bosses_defeated = 0
 	draw_counts.clear()
 	pity_tickets.clear()
 	hidden_tickets = 0
@@ -1592,110 +1596,24 @@ func _find_recipe_materials(recipe: Dictionary, required_selected: bool) -> Arra
 
 func _has_recipe_for_selected() -> bool:
 	for recipe in RECIPES:
-		if _recipe_item_ready(recipe) and _find_recipe_materials(recipe, true).size() == recipe["materials"].size():
-			return true
+		if _recipe_item_ready(recipe) and not Inventory.plan(self,recipe,true).is_empty(): return true
 	return false
 
 func _fuse_selected() -> void:
-	if game_over or selected < 0 or selected >= dogs.size():
-		return
+	if game_over or victory or selected < 0 or selected >= dogs.size(): return
 	for recipe in RECIPES:
-		var ingredients: Array = recipe["materials"]
-		if not _recipe_item_ready(recipe):
-			continue
-		if ingredients.size() != 3:
-			continue
-		var materials: Array[int] = _find_recipe_materials(recipe, true)
-		if materials.size() != 3:
-			continue
-		# Verify distinct dog instances and the whole recipe before modifying the board.
-		var unique_indices: Dictionary = {}
-		var remaining: Array = ingredients.duplicate()
-		var valid: bool = true
-		for index in materials:
-			if index < 0 or index >= dogs.size() or unique_indices.has(index):
-				valid = false
-				break
-			unique_indices[index] = true
-			var kind: int = int(dogs[index]["kind"])
-			if not remaining.has(kind):
-				valid = false
-				break
-			remaining.erase(kind)
-		if not valid or not remaining.is_empty() or not unique_indices.has(selected):
-			continue
-		var result_kind: int = int(recipe["result"])
-		if result_kind < 0 or result_kind >= DOGS.size():
-			continue
-		var target_cell: int = int(dogs[selected]["cell"])
-		if target_cell < 0 or target_cell >= COLS * ROWS:
-			continue
-		# Only after every check passes, consume three distinct ingredients.
-		materials.sort()
-		materials.reverse()
-		for index in materials:
-			dogs.remove_at(index)
-		_consume_recipe_item(recipe)
-		dogs.append({"cell": target_cell, "kind": result_kind, "cooldown": 0.0})
-		_on_successful_fusion(result_kind)
-		selected = dogs.size() - 1
-		_refresh()
-		return
+		if Inventory.craft(self,recipe,true): return
 
-# Direct crafting from the recipe catalog. Existing selected-unit fusion is untouched.
-# This duplicates neither a material instance nor any gold cost; all checks precede mutations.
 func _craft_recipe_from_catalog(result_kind: int) -> void:
-	if game_over:
-		_set_recipe_feedback("게임 오버 상태에서는 조합할 수 없습니다.", false)
+	if game_over or victory:
+		_set_recipe_feedback("게임 종료 상태에서는 조합할 수 없습니다.",false)
 		return
-	var target_recipe: Dictionary = {}
 	for recipe in RECIPES:
 		if int(recipe["result"]) == result_kind:
-			target_recipe = recipe
-			break
-	if target_recipe.is_empty():
-		_set_recipe_feedback("조합식을 찾을 수 없습니다.", false)
-		return
-	if not _recipe_item_ready(target_recipe):
-		_set_recipe_feedback("전용 아이템 부족: " + str(BEAST_ITEMS.get(result_kind, "필요")), false)
-		return
-	var materials: Array[int] = _find_recipe_materials(target_recipe, false)
-	if materials.size() != 3:
-		_set_recipe_feedback("재료가 부족합니다: " + DOGS[result_kind], false)
-		return
-	# Revalidate all three separate indices and kinds before removing anything.
-	var required: Array = target_recipe["materials"].duplicate()
-	var unique: Dictionary = {}
-	for index in materials:
-		if index < 0 or index >= dogs.size() or unique.has(index):
-			_set_recipe_feedback("조합 재료 검증 실패", false)
+			if not Inventory.craft(self,recipe,false):
+				_set_recipe_feedback("필드·보관함 재료 또는 전용 아이템이 부족합니다.",false)
 			return
-		unique[index] = true
-		var kind: int = int(dogs[index]["kind"])
-		if not required.has(kind):
-			_set_recipe_feedback("조합 재료 종류 불일치", false)
-			return
-		required.erase(kind)
-	if not required.is_empty() or result_kind < 0 or result_kind >= DOGS.size():
-		_set_recipe_feedback("조합 데이터 오류", false)
-		return
-	# Retain the chosen unit's cell if it is an ingredient, otherwise use the first ingredient.
-	var target_index: int = selected if unique.has(selected) else materials[0]
-	var target_cell: int = int(dogs[target_index]["cell"])
-	if target_cell < 0 or target_cell >= COLS * ROWS:
-		_set_recipe_feedback("잘못된 배치 위치", false)
-		return
-	materials.sort()
-	materials.reverse()
-	for index in materials:
-		dogs.remove_at(index)
-	_consume_recipe_item(target_recipe)
-	dogs.append({"cell": target_cell, "kind": result_kind, "cooldown": 0.0})
-	var mission_gold: int = _on_successful_fusion(result_kind)
-	selected = dogs.size() - 1
-	recipe_last_signature = ""
-	_refresh()
-	_set_recipe_feedback("조합 성공! " + DOGS[result_kind] + " 획득" + (" · 미션 +%dG" % mission_gold if mission_gold > 0 else ""), true)
+	_set_recipe_feedback("조합으로 획득하는 유닛이 아닙니다.",false)
 
 func _set_recipe_feedback(message: String, success: bool) -> void:
 	if recipe_feedback == null:
@@ -1728,7 +1646,7 @@ func _build_recipe_panel() -> void:
 	title.add_theme_font_size_override("font_size", 22)
 	header.add_child(title)
 	var gallery_button := Button.new()
-	gallery_button.text = "49종 유닛 보기"
+	gallery_button.text = "52종 유닛 보기"
 	gallery_button.custom_minimum_size = Vector2(180, 46)
 	gallery_button.pressed.connect(_open_unit_gallery)
 	header.add_child(gallery_button)
@@ -1744,7 +1662,7 @@ func _build_recipe_panel() -> void:
 	filters.add_theme_constant_override("h_separation", 8)
 	filters.add_theme_constant_override("v_separation", 8)
 	outer.add_child(filters)
-	for pair in [["전체", "전체 39종"], ["중형견", "중형견 13종"], ["대형견", "대형견 13종"], ["맹수", "맹수 6종"], ["신화", "신화 4종"], ["초월", "초월 3종"]]:
+	for pair in [["소형견", "소형견 10종"], ["중형견", "중형견 13종"], ["대형견", "대형견 13종"], ["맹수", "맹수 6종"], ["신화", "신화 4종"], ["초월", "초월 3종"], ["히든", "히든 3종"]]:
 		var filter_button := Button.new()
 		filter_button.text = str(pair[1])
 		filter_button.custom_minimum_size = Vector2(0, 52)
@@ -1760,7 +1678,7 @@ func _build_recipe_panel() -> void:
 	recipe_content_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	outer.add_child(recipe_content_gap)
 	recipe_feedback = Label.new()
-	recipe_feedback.text = "재료가 충분하면 제작 버튼을 누르세요."
+	recipe_feedback.text = "필드 + 보관함의 재료를 함께 사용합니다."
 	recipe_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	recipe_feedback.custom_minimum_size = Vector2(0, 32)
 	recipe_feedback.add_theme_font_size_override("font_size", 22)
@@ -1778,6 +1696,9 @@ func _toggle_recipes() -> void:
 	if draw_info_panel != null:
 		draw_info_panel.visible = false
 	recipe_panel.visible = not recipe_panel.visible
+	if not recipe_panel.visible and features.catalog_pause_active:
+		paused=features.catalog_restore_pause
+		features.catalog_pause_active=false
 	if recipe_panel.visible:
 		recipe_last_signature = ""
 		_refresh_recipes()
@@ -1836,8 +1757,10 @@ func _refresh_recipes() -> void:
 	for dog in dogs:
 		var kind: int = int(dog["kind"])
 		owned[kind] = int(owned.get(kind, 0)) + 1
+	for kind in reserve_units:
+		owned[int(kind)] = int(owned.get(int(kind),0))+int(reserve_units[kind])
 	# _refresh is called every frame. Rebuild the list only on inventory/filter changes.
-	var signature: String = recipe_filter + ":" + str(game_over)
+	var signature: String = recipe_filter + ":" + str(game_over or victory)
 	for kind in range(DOGS.size()):
 		signature += "," + str(int(owned.get(kind, 0)))
 	for item_id in BEAST_ITEMS.keys():
@@ -1848,6 +1771,9 @@ func _refresh_recipes() -> void:
 	for child in recipe_list.get_children():
 		recipe_list.remove_child(child)
 		child.queue_free()
+	if recipe_filter in ["소형견","히든"]:
+		features.catalog_special(recipe_list,recipe_filter,owned)
+		return
 	for recipe in RECIPES:
 		var result_kind: int = int(recipe["result"])
 		if recipe_filter != "전체" and GRADES[result_kind] != recipe_filter:
@@ -1878,7 +1804,7 @@ func _refresh_recipes() -> void:
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		result_row.add_child(name_label)
 		var material_label := Label.new()
-		material_label.text = "재료 · 보유 / 필요 수량"
+		material_label.text = "필드 + 보관함 · 보유 / 필요 수량"
 		material_label.add_theme_font_size_override("font_size", 22)
 		material_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		entry.add_child(material_label)
@@ -1903,7 +1829,7 @@ func _refresh_recipes() -> void:
 			entry.add_child(item_label)
 		var craft_button := Button.new()
 		craft_button.text = "제작하기" if ready and not game_over else "재료 부족" if not ready else "게임 종료"
-		craft_button.disabled = not ready or game_over
+		craft_button.disabled = not ready or game_over or victory
 		craft_button.custom_minimum_size = Vector2(535, 62)
 		craft_button.pressed.connect(_craft_recipe_from_catalog.bind(result_kind))
 		entry.add_child(craft_button)
@@ -2072,7 +1998,10 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_APPLICATION_RESUMED or what == NOTIFICATION_APPLICATION_FOCUS_IN:
 		if game_audio != null: game_audio.set_backgrounded(false)
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		if is_instance_valid(features.choice_panel) and features.choice_panel.visible: features.close_choice()
+		if is_instance_valid(unit_gallery) and unit_gallery.visible: unit_gallery.hide()
+		elif settings_panel != null and settings_panel.visible: _toggle_settings()
+		elif recipe_panel != null and recipe_panel.visible: _toggle_recipes()
+		elif is_instance_valid(features.choice_panel) and features.choice_panel.visible: features.close_choice()
 		elif is_instance_valid(features.reserve_panel) and features.reserve_panel.visible: features.close_reserve()
 		elif pending_deploy>=0:
 			pending_deploy=-1
@@ -2188,7 +2117,7 @@ func _open_unit_gallery() -> void:
 	unit_gallery = PanelContainer.new()
 	unit_gallery.position = Vector2(14, 82)
 	unit_gallery.size = Vector2(692, 1090)
-	unit_gallery.z_index = 230
+	unit_gallery.z_index = 360
 	add_child(unit_gallery)
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 12)
@@ -2216,7 +2145,7 @@ func _open_unit_gallery() -> void:
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	scroll.add_child(grid)
-	for kind in range(DOGS.size()):
+	for kind in features.sorted_kinds():
 		var card := VBoxContainer.new()
 		card.custom_minimum_size = Vector2(300, 260)
 		grid.add_child(card)

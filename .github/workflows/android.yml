@@ -15,12 +15,23 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
+    outputs:
+      approved_art: ${{ steps.approved-art.outputs.ready }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       GODOT_VERSION: 4.5.1
     steps:
       - uses: actions/checkout@v4
+      - name: Check approved artwork source before allowing APK export
+        id: approved-art
+        run: |
+          if [ -f game/assets/screens/approved-layout.png ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Exact approved artwork file is pending; verify functions without exporting a replacement design."
+          fi
       - name: Inspect all atlas boundaries
         run: |
           python3 -m pip install Pillow numpy scipy
@@ -61,12 +72,12 @@ jobs:
       - name: Upload attack motion preview
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.30.0-motion-preview
+          name: MeongRandy-0.31.0-motion-preview
           path: game/previews/attack-motion-demo.mp4
       - name: Upload music and elemental sound samples
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.30.0-audio-preview
+          name: MeongRandy-0.31.0-audio-preview
           path: |
             game/previews/mixer-*.wav
             game/audio/element_*.wav
@@ -82,6 +93,7 @@ jobs:
           if-no-files-found: warn
   android:
     needs: verify
+    if: needs.verify.outputs.approved_art == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -122,10 +134,10 @@ jobs:
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-0.30.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.30.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.30.0-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-0.30.0-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.31.0-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.31.0-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.31.0-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.31.0-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -143,8 +155,8 @@ jobs:
       - name: Upload APK separately for phone installation
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.30.0-APK
-          path: build/MeongRandy-0.30.0-debug.apk
+          name: MeongRandy-0.31.0-APK
+          path: build/MeongRandy-0.31.0-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"

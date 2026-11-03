@@ -20,10 +20,9 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	var layout: Dictionary = {}
-	for child in g.features.start_panel.get_child(0).get_child(0).get_children():
-		if child is Button:
-			var key: String = "new_game" if child.text.begins_with("새 게임") else "continue_game"
-			layout[key]={"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
+	for pair in [["new_game","NewGame"],["continue_game","Resume"]]:
+		var child: Control=g.features.start_panel.get_node("Canvas/"+str(pair[1]))
+		layout[pair[0]]={"x":child.global_position.x,"y":child.global_position.y,"width":child.size.x,"height":child.size.y}
 	await snap("start-screen")
 	g.features.new_game()
 	await process_frame

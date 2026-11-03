@@ -10,7 +10,7 @@ func run_checks() -> void:
     var grid: GridContainer = outer.get_node("RecipeFilterGrid")
     assert(grid.columns == 3)
     assert(grid.size_flags_horizontal == Control.SIZE_EXPAND_FILL)
-    assert(grid.get_child_count() == 6)
+    assert(grid.get_child_count() == 7)
     for button in grid.get_children():
         assert(button is Button)
         assert(button.custom_minimum_size.x == 0.0)

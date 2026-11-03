@@ -1,4 +1,11 @@
 extends RefCounted
+const Screens = preload("res://scripts/screen_presentation.gd")
+const GRADES := ["소형견","중형견","대형견","맹수","신화","초월","히든"]
+var reserve_filter: String = "소형견"
+var catalog_pause_active: bool = false
+var catalog_restore_pause: bool = false
+var reserve_tabs: GridContainer
+var stash_button: Button
 const Rules = preload("res://scripts/draw_rules.gd")
 var g: Control
 var start_panel: PanelContainer
@@ -48,17 +55,7 @@ func column(parent: Control) -> VBoxContainer:
 	margin.add_child(box)
 	return box
 func build() -> void:
-	start_panel = panel(Rect2(0, 0, 720, 1280), 310)
-	var box := column(start_panel)
-	box.add_spacer(false)
-	var title := label("멍랜디\n천공 성채", 56)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
-	box.add_child(label("소환하고, 선택하고, 배치하세요.\n80라운드와 8명의 보스에 도전합니다.", 26))
-	button(box, "새 게임 · 난이도 선택", new_game)
-	var resume := button(box, "이어하기", continue_game)
-	resume.disabled = not FileAccess.file_exists(g.RunStorage.PATH)
-	box.add_spacer(false)
+	start_panel = Screens.start(g,self)
 	g.difficulty_panel.hide()
 	reserve_button = g._make_button("소환 보관함 0", Vector2(478,1003), Vector2(219,74), open_reserve)
 	reserve_button.add_theme_font_size_override("font_size",22)
@@ -91,9 +88,10 @@ func continue_game() -> void:
 	else:
 		toast("저장된 게임을 불러올 수 없습니다.")
 func reset() -> void:
-	for node in [start_panel, result_panel, reserve_panel, choice_panel, toast_panel]:
+	for node in [start_panel, result_panel, reserve_panel, choice_panel, toast_panel,g.unit_gallery]:
 		if is_instance_valid(node): node.hide()
 	last_result = ""
+	reserve_filter = "소형견"
 	g.pending_deploy = -1
 func refresh() -> void:
 	if start_panel == null: return
@@ -110,20 +108,15 @@ func refresh() -> void:
 	for node in [reserve_panel,choice_panel,g.recipe_panel,g.draw_info_panel,g.settings_panel]:
 		if is_instance_valid(node): node.hide()
 	if is_instance_valid(result_panel): result_panel.queue_free()
-	result_panel = panel(Rect2(34, 230, 652, 700), 320)
-	var box := column(result_panel)
-	box.add_child(label("VICTORY" if g.victory else "DEFEAT",46))
-	box.add_child(label("성채를 지켜냈습니다!" if g.victory else "다시 도전해 보세요.",30))
-	box.add_child(label("난이도: %s\n일반 라운드: %d / 80\n진행 보스: %d / 8\n남은 골드: %dG" % [g.difficulty,g.wave,g.boss_round,g.gold]))
-	box.add_spacer(false)
-	button(box,"다시하기 · 난이도 선택부터",new_game)
+	result_panel = Screens.result(g,self)
+
 func persist() -> void:
 	if g.persistence_enabled: g.RunStorage.save(g)
 func summon() -> void:
 	if g.game_over or g.victory or g.gold < g.COST: return
 	var kind: int = [0,1,2,10,11,12,13,14,15,16][g.rng.randi_range(0,9)]
 	g.gold -= g.COST
-	g.reserve_units[kind] = int(g.reserve_units.get(kind,0))+1
+	g.Inventory.add(g,kind)
 	g._sound("summon")
 	toast("%s 소환! · 보관함에 추가되었습니다." % g.DOGS[kind])
 	g._refresh()
@@ -134,9 +127,9 @@ func deploy(kind: int, cell: int) -> bool:
 	if int(g.reserve_units.get(kind,0)) <= 0: return false
 	for dog in g.dogs:
 		if int(dog["cell"]) == cell: return false
-	g.reserve_units[kind] = int(g.reserve_units[kind])-1
-	if int(g.reserve_units[kind]) == 0: g.reserve_units.erase(kind)
-	g.dogs.append({"kind":kind,"cell":cell,"cooldown":0.0,"hidden_charge":0})
+	var state: Dictionary = g.Inventory.take(g,kind)
+	state["cell"] = cell
+	g.dogs.append(state)
 	g.pending_deploy = -1
 	g.selected = g.dogs.size()-1
 	g._sound("summon")
@@ -148,14 +141,33 @@ func open_reserve() -> void:
 	g.pending_deploy = -1
 	for node in [g.recipe_panel,g.draw_info_panel,g.mission_panel]:
 		if is_instance_valid(node): node.hide()
-	restore_pause = g.paused
+	if not is_instance_valid(reserve_panel) or not reserve_panel.visible:
+		restore_pause = g.paused
 	g.paused = true
 	if is_instance_valid(reserve_panel): reserve_panel.queue_free()
-	reserve_panel = panel(Rect2(14,82,692,893),250)
+	reserve_panel = panel(Rect2(14,82,692,1010),250)
 	var box := column(reserve_panel)
 	box.add_child(label("소환 보관함",32))
-	box.add_child(label("유닛 선택 → 빈 필드 칸을 눌러 배치\n조합은 필드에 배치된 유닛으로 진행합니다.",21))
-	button(box,"닫기",close_reserve)
+	box.add_child(label("전 등급 보관 · 유닛 선택 후 빈 칸에 배치\n조합 도감에서 필드와 보관함 재료를 함께 사용합니다.",20))
+	stash_button = button(box,"선택한 필드 유닛 보관",stash_selected)
+	stash_button.disabled = g.selected<0 or g.selected>=g.dogs.size()
+	if not stash_button.disabled:
+		stash_button.text = g.DOGS[int(g.dogs[g.selected]["kind"])]+" · 보관함으로"
+	reserve_tabs = GridContainer.new()
+	reserve_tabs.columns = 4
+	reserve_tabs.add_theme_constant_override("h_separation",6)
+	reserve_tabs.add_theme_constant_override("v_separation",6)
+	box.add_child(reserve_tabs)
+	for grade in GRADES:
+		var tab := button(reserve_tabs,grade,set_reserve_filter.bind(grade))
+		tab.custom_minimum_size=Vector2(150,56)
+		tab.add_theme_font_size_override("font_size",21)
+		tab.toggle_mode=true
+		tab.set_pressed_no_signal(grade==reserve_filter)
+	var actions := HBoxContainer.new()
+	box.add_child(actions)
+	button(actions,"조합 도감",reserve_catalog).size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	button(actions,"닫기",close_reserve).size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var scroll: ScrollContainer = g.TouchScroll.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(scroll)
@@ -163,25 +175,8 @@ func open_reserve() -> void:
 	reserve_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	reserve_list.add_theme_constant_override("separation",12)
 	scroll.add_child(reserve_list)
-	var keys: Array = g.reserve_units.keys()
-	keys.sort()
-	if keys.is_empty(): reserve_list.add_child(label("아직 보관 중인 유닛이 없습니다."))
-	for key in keys:
-		var kind: int = int(key)
-		var row := HBoxContainer.new()
-		reserve_list.add_child(row)
-		var portrait := TextureRect.new()
-		portrait.texture = g._dog_portrait(kind)
-		portrait.custom_minimum_size = Vector2(74,74)
-		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(portrait)
-		var pick := button(row,"%s ×%d · 배치" % [g.DOGS[kind],int(g.reserve_units[key])],select_reserve.bind(kind))
-		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pick.disabled = g.dogs.size() >= 36
-	if g.dogs.size() >= 36: box.add_child(label("필드가 가득 찼습니다. 조합 또는 판매로 빈 칸을 만드세요.",21))
-	button(box,"조합 미션 확인",show_missions)
+	refresh_reserve()
+
 func show_missions() -> void:
 	close_reserve()
 	g._toggle_missions()
@@ -298,8 +293,6 @@ func draw_info() -> void:
 		button(g.draw_info_list,"히든 선택권 %d장 · 사용" % g.hidden_tickets,open_choice.bind("히든")).disabled = g.hidden_tickets<=0 or g.game_over or g.victory
 		button(g.draw_info_list,"%s 조합 아이템 선택권 %d장 · 사용" % [category,int(g.pity_tickets.get(category,0))],open_choice.bind(category)).disabled = int(g.pity_tickets.get(category,0))<=0 or g.game_over or g.victory
 		g._draw_info_line("선택권과 보관 유닛은 이번 게임에서 사용합니다.",19)
-		var schedules: Dictionary = g.BalanceRules.MILESTONES[g.difficulty]
-		g._draw_info_line("라운드 보상: "+str(schedules[category])+" · 각 선택권 1장",19)
 		for outcome in Rules.TABLES[category]:
 			if outcome["type"] == "item":
 				var id: int = int(outcome["item"])
@@ -321,3 +314,93 @@ func draw_info() -> void:
 				"hidden_ticket": text = "히든 선택권 · 3종 중 1종 선택"
 			g._draw_info_line("%s · %.4f%%" % [text,float(outcome["tickets"])/10000.0],21)
 		g._draw_info_line("100회마다 해당 유형 조합 아이템 선택권 추가 지급.\n아이템 당첨으로 천장 횟수가 초기화되지 않습니다.",20)
+
+func sorted_kinds() -> Array[int]:
+	var kinds: Array[int] = []
+	for grade in GRADES:
+		for kind in range(g.DOGS.size()):
+			if g.GRADES[kind]==grade: kinds.append(kind)
+	return kinds
+func set_reserve_filter(grade: String) -> void:
+	if not GRADES.has(grade): return
+	reserve_filter=grade
+	for tab in reserve_tabs.get_children(): tab.set_pressed_no_signal(tab.text==grade)
+	refresh_reserve()
+	reserve_list.get_parent().reset_position()
+func refresh_reserve() -> void:
+	for child in reserve_list.get_children():
+		reserve_list.remove_child(child)
+		child.queue_free()
+	for kind in sorted_kinds():
+		var count: int=int(g.reserve_units.get(kind,0))
+		if count<=0 or g.GRADES[kind]!=reserve_filter: continue
+		var row := HBoxContainer.new()
+		reserve_list.add_child(row)
+		row.add_child(g._recipe_portrait(kind,74))
+		var pick := button(row,"%s ×%d · 배치" % [g.DOGS[kind],count],select_reserve.bind(kind))
+		pick.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		pick.disabled=g.dogs.size()>=36
+	if reserve_list.get_child_count()==0:
+		reserve_list.add_child(label(reserve_filter+" 등급의 보관 유닛이 없습니다.",22))
+	if g.dogs.size()>=36:
+		reserve_list.add_child(label("필드가 가득 찼습니다. 유닛을 보관하거나 조합해 주세요.",21))
+func stash_selected() -> void:
+	if stash(g.selected):
+		stash_button.disabled=true
+		stash_button.text="필드에서 유닛을 선택하면 보관할 수 있습니다."
+		refresh_reserve()
+func stash(index: int) -> bool:
+	if g.game_over or g.victory or not g.difficulty_confirmed or index<0 or index>=g.dogs.size(): return false
+	var state: Dictionary=g.dogs[index].duplicate(true)
+	var kind: int=int(state["kind"])
+	g.Inventory.add(g,kind,state)
+	g.dogs.remove_at(index)
+	g.selected=-1
+	g.pending_deploy=-1
+	g._aura_signature=""
+	g._aura_present.clear()
+	g.attack_flashes.clear()
+	g.attack_vectors.clear()
+	g.attack_durations.clear()
+	g._refresh()
+	persist()
+	toast(g.DOGS[kind]+" · 보관함으로 이동했습니다.")
+	return true
+func reserve_catalog() -> void:
+	close_reserve()
+	catalog_restore_pause=g.paused
+	catalog_pause_active=true
+	g.paused=true
+	g._toggle_recipes()
+func title_catalog() -> void:
+	g.recipe_panel.z_index=350
+	g._toggle_recipes()
+func title_settings() -> void:
+	g.settings_panel.z_index=350
+	g._toggle_settings()
+func go_home() -> void:
+	if is_instance_valid(result_panel): result_panel.hide()
+	g.paused=true
+	start_panel.get_node("Canvas/Resume").disabled=not FileAccess.file_exists(g.RunStorage.PATH)
+	start_panel.show()
+func catalog_special(parent: Control, grade: String, owned: Dictionary) -> void:
+	for kind in sorted_kinds():
+		if g.GRADES[kind]!=grade: continue
+		var entry := VBoxContainer.new()
+		entry.name="Unit_%d" % kind
+		entry.add_theme_constant_override("separation",12)
+		parent.add_child(entry)
+		var row := HBoxContainer.new()
+		entry.add_child(row)
+		row.add_child(g._recipe_portrait(kind,110))
+		var details := VBoxContainer.new()
+		details.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		row.add_child(details)
+		details.add_child(label("%s [%s] · 보유 %d" % [g.DOGS[kind],grade,int(owned.get(kind,0))],24))
+		details.add_child(label("공격 %.0f · 사거리 %.0f · 공격 주기 %.2f초" % [g.ATTACK[kind],g.RANGE[kind],g.COOLDOWN[kind]],21))
+		entry.add_child(label("획득: 일반 소환 → 보관함 (20G)" if grade=="소형견" else "획득: 모든 뽑기에서 히든 선택권 0.001% → 3종 중 선택",21))
+		if grade=="히든":
+			entry.add_child(label(["성핵 붕괴: 5회 공격마다 광역 마법 폭발과 별빛 연쇄","무음 균열: 4회 공격마다 3초간 균열 피해와 둔화","꿈결 공명: 6회 공격마다 주변 아군의 4초간 공격속도 강화"][kind-49],23))
+			var choose := button(entry,"히든 선택권 사용 · %d장" % g.hidden_tickets,open_choice.bind("히든"))
+			choose.disabled=g.hidden_tickets<=0 or g.game_over or g.victory or not g.difficulty_confirmed
+		entry.add_child(HSeparator.new())
