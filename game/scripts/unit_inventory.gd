@@ -60,6 +60,14 @@ static func craft(g: Control, recipe: Dictionary, required_selected: bool) -> bo
 		var index: int = g.selected if field.has(g.selected) else field[0]
 		cell = int(g.dogs[index]["cell"])
 		if cell < 0 or cell >= 36: return false
+	if cell < 0:
+		var occupied: Dictionary={}
+		for dog in g.dogs: occupied[int(dog["cell"])]=true
+		for candidate in range(36):
+			if not occupied.has(candidate):
+				cell=candidate
+				break
+		if cell < 0: return false
 	# The verified plan is consumed synchronously; repeated taps re-check stock.
 	field.sort()
 	field.reverse()
@@ -67,12 +75,8 @@ static func craft(g: Control, recipe: Dictionary, required_selected: bool) -> bo
 	for kind in chosen["reserve"]:
 		for copy in range(int(chosen["reserve"][kind])): take(g,int(kind))
 	g._consume_recipe_item(recipe)
-	if cell >= 0:
-		g.dogs.append({"kind":result,"cell":cell,"cooldown":0.0,"hidden_charge":0})
-		g.selected = g.dogs.size()-1
-	else:
-		add(g,result)
-		g.selected = -1
+	g.dogs.append({"kind":result,"cell":cell,"cooldown":0.0,"hidden_charge":0})
+	g.selected=g.dogs.size()-1
 	g.pending_deploy = -1
 	g._aura_signature=""
 	g._aura_present.clear()
@@ -82,6 +86,6 @@ static func craft(g: Control, recipe: Dictionary, required_selected: bool) -> bo
 	var bonus: int = g._on_successful_fusion(result)
 	g.recipe_last_signature = ""
 	g._refresh()
-	g._set_recipe_feedback("조합 성공! "+g.DOGS[result]+(" · 보관함에 지급" if cell<0 else " · 필드에 배치")+(" · 미션 +%dG" % bonus if bonus>0 else ""),true)
+	g._set_recipe_feedback("조합 성공! "+g.DOGS[result]+" · 필드에 배치"+(" · 미션 +%dG" % bonus if bonus>0 else ""),true)
 	g.features.persist()
 	return true

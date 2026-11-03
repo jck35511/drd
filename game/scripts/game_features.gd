@@ -92,6 +92,9 @@ func reset() -> void:
 		if is_instance_valid(node): node.hide()
 	last_result = ""
 	reserve_filter = "소형견"
+	catalog_pause_active = false
+	if g.recipe_panel != null: g.recipe_panel.z_index=210
+	if g.settings_panel != null: g.settings_panel.z_index=210
 	g.pending_deploy = -1
 func refresh() -> void:
 	if start_panel == null: return
@@ -105,7 +108,7 @@ func refresh() -> void:
 	if last_result == result: return
 	last_result = result
 	g.pending_deploy = -1
-	for node in [reserve_panel,choice_panel,g.recipe_panel,g.draw_info_panel,g.settings_panel]:
+	for node in [reserve_panel,choice_panel,g.recipe_panel,g.draw_info_panel,g.settings_panel,g.unit_gallery]:
 		if is_instance_valid(node): node.hide()
 	if is_instance_valid(result_panel): result_panel.queue_free()
 	result_panel = Screens.result(g,self)
@@ -242,7 +245,7 @@ func open_choice(category: String) -> void:
 	restore_pause = g.paused
 	g.paused = true
 	if is_instance_valid(choice_panel): choice_panel.queue_free()
-	choice_panel = panel(Rect2(14,82,692,1000),270)
+	choice_panel = panel(Rect2(14,82,692,1000),370)
 	var box := column(choice_panel)
 	box.add_child(label(category+" 선택권 · 하나를 선택하세요",28))
 	box.add_child(label("히든은 선택 후 소환 보관함에 지급됩니다." if category=="히든" else "선택한 조합 아이템 1개를 지급합니다.",21))

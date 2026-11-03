@@ -1611,7 +1611,7 @@ func _craft_recipe_from_catalog(result_kind: int) -> void:
 	for recipe in RECIPES:
 		if int(recipe["result"]) == result_kind:
 			if not Inventory.craft(self,recipe,false):
-				_set_recipe_feedback("필드·보관함 재료 또는 전용 아이템이 부족합니다.",false)
+				_set_recipe_feedback("재료·전용 아이템 또는 필드의 빈 칸이 부족합니다.",false)
 			return
 	_set_recipe_feedback("조합으로 획득하는 유닛이 아닙니다.",false)
 
@@ -1760,7 +1760,7 @@ func _refresh_recipes() -> void:
 	for kind in reserve_units:
 		owned[int(kind)] = int(owned.get(int(kind),0))+int(reserve_units[kind])
 	# _refresh is called every frame. Rebuild the list only on inventory/filter changes.
-	var signature: String = recipe_filter + ":" + str(game_over or victory)
+	var signature: String = recipe_filter + ":" + str(game_over or victory) + ":" + str(hidden_tickets)
 	for kind in range(DOGS.size()):
 		signature += "," + str(int(owned.get(kind, 0)))
 	for item_id in BEAST_ITEMS.keys():

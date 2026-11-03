@@ -21,6 +21,7 @@ func run() -> void:
 	g.dogs.clear()
 	# All 39 recipes from reserve only: correct multiplicities, items and result location.
 	for recipe in g.RECIPES:
+		g.dogs.clear()
 		g.reserve_units.clear()
 		g.reserve_states.clear()
 		g.beast_items.clear()
@@ -32,12 +33,13 @@ func run() -> void:
 			assert(g.reserve_units==unchanged)
 			g.beast_items[int(recipe["item"])]=1
 		g._craft_recipe_from_catalog(result)
-		assert(g.dogs.is_empty())
-		assert(g.reserve_units.size()==1 and int(g.reserve_units.get(result,0))==1)
+		assert(g.dogs.size()==1 and int(g.dogs[0]["kind"])==result)
+		assert(g.reserve_units.is_empty())
 		if recipe.has("item"): assert(int(g.beast_items[int(recipe["item"])])==0)
 		var once: Dictionary=g.reserve_units.duplicate(true)
+		var once_field: Array=g.dogs.duplicate(true)
 		g._craft_recipe_from_catalog(result)
-		assert(g.reserve_units==once,"Repeated tap cannot duplicate a result")
+		assert(g.reserve_units==once and g.dogs==once_field,"Repeated tap cannot duplicate a result")
 	# Mixed location and selected-unit fusion.
 	g.reserve_units.clear()
 	g.dogs.assign([{"kind":0,"cell":9,"cooldown":0.0}])
@@ -53,13 +55,16 @@ func run() -> void:
 	g.Inventory.add(g,1)
 	g._fuse_selected()
 	assert(g.dogs.size()==1 and int(g.dogs[0]["kind"])==4)
-	# Full field does not block a reserve-only craft.
+	# A full field rejects a reserve-only craft without consuming resources.
 	g.dogs.clear()
 	for cell in range(36): g.dogs.append({"kind":49,"cell":cell,"cooldown":0.2})
 	g.reserve_units={0:2,1:1}
 	g._craft_recipe_from_catalog(4)
-	assert(g.dogs.size()==36 and int(g.reserve_units.get(4,0))==1)
-	assert(not g.features.deploy(4,0))
+	assert(g.dogs.size()==36 and g.reserve_units=={0:2,1:1})
+	g.dogs.remove_at(12)
+	g._craft_recipe_from_catalog(4)
+	assert(g.dogs.size()==36 and int(g.dogs.back()["kind"])==4 and int(g.dogs.back()["cell"])==12)
+	assert(g.reserve_units.is_empty())
 	# Missing duplicate preserves the entire inventory and selected field unit.
 	g.dogs.clear()
 	g.reserve_units={0:1,1:1}
