@@ -77,12 +77,12 @@ jobs:
       - name: Upload attack motion preview
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.31.0-motion-preview
+          name: MeongRandy-0.31.1-motion-preview
           path: game/previews/attack-motion-demo.mp4
       - name: Upload music and elemental sound samples
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.31.0-audio-preview
+          name: MeongRandy-0.31.1-audio-preview
           path: |
             game/previews/mixer-*.wav
             game/audio/element_*.wav
@@ -139,10 +139,10 @@ jobs:
       - name: Import and build installable APK
         run: |
           godot --headless --editor --path game --import
-          godot --headless --path game --export-debug Android ../build/MeongRandy-0.31.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.31.0-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.31.0-debug.apk > build/apk-info.txt
-          sha256sum build/MeongRandy-0.31.0-debug.apk > build/SHA256SUMS.txt
+          godot --headless --path game --export-debug Android ../build/MeongRandy-0.31.1-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose build/MeongRandy-0.31.1-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/MeongRandy-0.31.1-debug.apk > build/apk-info.txt
+          sha256sum build/MeongRandy-0.31.1-debug.apk > build/SHA256SUMS.txt
       - name: Package source
         run: |
           python3 - <<'PY'
@@ -160,8 +160,8 @@ jobs:
       - name: Upload APK separately for phone installation
         uses: actions/upload-artifact@v4
         with:
-          name: MeongRandy-0.31.0-APK
-          path: build/MeongRandy-0.31.0-debug.apk
+          name: MeongRandy-0.31.1-APK
+          path: build/MeongRandy-0.31.1-debug.apk
   android-smoke:
     env:
       DISPLAY: ":99"
@@ -190,7 +190,7 @@ jobs:
       - name: Start Mesa software display
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils
+          sudo apt-get install -y xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils ffmpeg
           Xvfb :99 -screen 0 1280x1024x24 > /tmp/meongrandy-xvfb.log 2>&1 &
           for attempt in 1 2 3 4 5; do
             if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi

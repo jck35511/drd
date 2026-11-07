@@ -1,7 +1,7 @@
 """Smoke test the exported APK, without modifying game rules or the APK."""
 from pathlib import Path
 import subprocess, time, json, base64, io, shlex, sys
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageStat
 OUT = Path("build/android-smoke")
 OUT.mkdir(parents=True, exist_ok=True)
 PKG = "com.jck35511.meongrandy"
@@ -37,9 +37,12 @@ packages = adb("shell","pm","list","packages").decode()
 for stock_app in ["com.google.android.apps.messaging","com.android.messaging","com.android.mms"]:
     if ("package:" + stock_app + "\n") in packages:
         adb("shell","pm","disable-user","--user","0",stock_app)
-adb("install", "-r", "build/MeongRandy-0.31.0-debug.apk")
+adb("install", "-r", "build/MeongRandy-0.31.1-debug.apk")
 adb("logcat", "-c")
 adb("shell", "settings", "put", "secure", "immersive_mode_confirmations", "confirmed")
+# Record the actual cold launch before the engine has loaded its scene.
+startup_recorder=subprocess.Popen(["adb","shell","screenrecord","--time-limit","20","--bit-rate","2000000","/sdcard/meongrandy-startup.mp4"],stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+time.sleep(0.5)
 adb("shell", "monkey", "-p", PKG, "-c", "android.intent.category.LAUNCHER", "1")
 startup_deadline=time.monotonic()+45
 while time.monotonic()<startup_deadline:
@@ -49,6 +52,24 @@ while time.monotonic()<startup_deadline:
     time.sleep(1)
 else: raise AssertionError("App failed to launch within 45 seconds")
 time.sleep(12)
+startup_recorder.wait(timeout=15)
+assert startup_recorder.returncode==0, "Android startup recording failed"
+adb("pull","/sdcard/meongrandy-startup.mp4",str(OUT/"startup.mp4"))
+startup_frames=OUT/"startup-frames"
+startup_frames.mkdir(exist_ok=True)
+subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-i",str(OUT/"startup.mp4"),"-vf","fps=30,scale=180:320",str(startup_frames/"frame-%04d.png")],check=True)
+loading_reference=Image.open("game/assets/screens/loading.png").convert("RGB").resize((180,320))
+startup_matches=[]
+for frame in sorted(startup_frames.glob("*.png")):
+    shot=Image.open(frame).convert("RGB")
+    error=sum(ImageStat.Stat(ImageChops.difference(loading_reference,shot)).mean)/3
+    startup_matches.append((error,frame))
+assert startup_matches, "No cold-start video frames were recorded"
+best_error,best_frame=min(startup_matches,key=lambda item:item[0])
+Image.open(best_frame).save(OUT/"00-loading-screen.png")
+(OUT/"startup-check.json").write_text(json.dumps({"best_loading_frame":best_frame.name,"mean_pixel_error":best_error,"extra_splash_delay_ms":0},indent=2))
+assert best_error<35, "Custom loading screen did not appear in cold-start video: "+str(best_error)
+print("ANDROID_CUSTOM_LOADING_PASS:"+str(round(best_error,3)))
 # Dismiss Android's own first-use fullscreen tutorial if present.
 adb("shell","uiautomator","dump","/sdcard/window.xml")
 hierarchy = adb("shell","cat","/sdcard/window.xml").decode("utf-8","replace")
@@ -107,6 +128,23 @@ tap_control("reserve_pick")
 time.sleep(0.3)
 tap(163,233)
 time.sleep(0.4)
+# Buy one additional reserve unit, then sell that copy through its real UI button.
+tap_control("summon")
+time.sleep(0.3)
+tap(585,1040)
+time.sleep(0.5)
+sale_paths=adb("shell","run-as",PKG,"find","files","-name","sky_castle_save.json").decode().strip().splitlines()
+assert sale_paths
+before_sale=json.loads(adb("shell","run-as",PKG,"cat",sale_paths[0]))
+tap_control("reserve_sell")
+time.sleep(0.5)
+after_sale=json.loads(adb("shell","run-as",PKG,"cat",sale_paths[0]))
+assert after_sale["gold"]==before_sale["gold"]+10
+assert sum(after_sale["reserve_units"].values())==sum(before_sale["reserve_units"].values())-1
+assert after_sale["dogs"]==before_sale["dogs"]
+capture("02b-reserve-sale")
+tap_control("reserve_close")
+time.sleep(0.3)
 tap_control("start_wave")
 time.sleep(15)
 capture("03-gameplay")

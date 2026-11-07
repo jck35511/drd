@@ -170,7 +170,9 @@ func open_reserve() -> void:
 	var actions := HBoxContainer.new()
 	box.add_child(actions)
 	button(actions,"조합 도감",reserve_catalog).size_flags_horizontal=Control.SIZE_EXPAND_FILL
-	button(actions,"닫기",close_reserve).size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var close_button := button(actions,"닫기",close_reserve)
+	close_button.name="CloseReserve"
+	close_button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	var scroll: ScrollContainer = g.TouchScroll.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(scroll)
@@ -343,6 +345,13 @@ func refresh_reserve() -> void:
 		var pick := button(row,"%s ×%d · 배치" % [g.DOGS[kind],count],select_reserve.bind(kind))
 		pick.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		pick.disabled=g.dogs.size()>=36
+		pick.add_theme_font_size_override("font_size",22)
+		var price: int=g._sell_value(kind)
+		var sell := button(row,"판매 +%dG" % price if price>0 else "판매 불가",sell_reserve.bind(kind))
+		sell.name="Sell_%d" % kind
+		sell.custom_minimum_size=Vector2(148,74)
+		sell.add_theme_font_size_override("font_size",21)
+		sell.disabled=price<=0
 	if reserve_list.get_child_count()==0:
 		reserve_list.add_child(label(reserve_filter+" 등급의 보관 유닛이 없습니다.",22))
 	if g.dogs.size()>=36:
@@ -407,3 +416,18 @@ func catalog_special(parent: Control, grade: String, owned: Dictionary) -> void:
 			var choose := button(entry,"히든 선택권 사용 · %d장" % g.hidden_tickets,open_choice.bind("히든"))
 			choose.disabled=g.hidden_tickets<=0 or g.game_over or g.victory or not g.difficulty_confirmed
 		entry.add_child(HSeparator.new())
+
+func sell_reserve(kind: int) -> bool:
+	if g.game_over or g.victory or not g.difficulty_confirmed: return false
+	if kind<0 or kind>=g.DOGS.size() or int(g.reserve_units.get(kind,0))<=0: return false
+	var price: int=g._sell_value(kind)
+	if price<=0: return false
+	# Use the same inventory removal as crafting/deployment to preserve stored state.
+	g.Inventory.take(g,kind)
+	g.gold+=price
+	if g.pending_deploy==kind and int(g.reserve_units.get(kind,0))==0: g.pending_deploy=-1
+	g._refresh()
+	if is_instance_valid(reserve_panel) and reserve_panel.visible: refresh_reserve()
+	persist()
+	toast("%s 1마리 판매 · +%dG" % [g.DOGS[kind],price])
+	return true

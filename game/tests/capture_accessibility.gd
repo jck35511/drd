@@ -43,6 +43,8 @@ func run() -> void:
 	var pick: Control=g.features.reserve_list.get_child(0).get_child(1)
 	layout["reserve_pick"]={"x":pick.global_position.x,"y":pick.global_position.y,"width":pick.size.x,"height":pick.size.y}
 	layout["reserve_stash"]=bounds(g.features.stash_button)
+	layout["reserve_sell"]=bounds(g.features.reserve_list.get_child(0).get_child(2))
+	layout["reserve_close"]=bounds(g.features.reserve_panel.find_child("CloseReserve",true,false))
 	g.features.close_reserve()
 	g.reserve_units.clear()
 	g.hidden_tickets=1
