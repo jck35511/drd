@@ -16,23 +16,35 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: jck35511/drd
-      VERIFIED_RUN: "41436201325"
-      VERIFIED_SHA: "0e7607596bd3425f10740a418e24c204a05a37f2"
+      VERIFIED_RUN: "41584380285"
+      VERIFIED_SHA: "f52fd86df2bff2bc528fe6216cc5eca45019014a"
     steps:
-      - name: Verify successful build and download its original files
+      - name: Verify completed Android tests and download original artifacts
         shell: bash
         run: |
           set -euo pipefail
           gh api "repos/$GH_REPO/actions/runs/$VERIFIED_RUN" > run.json
+          gh api "repos/$GH_REPO/actions/runs/$VERIFIED_RUN/jobs?per_page=100" > jobs.json
           python3 - <<'PY'
           import json,os
           run=json.load(open("run.json"))
           assert run["status"]=="completed" and run["conclusion"]=="success"
           assert run["head_sha"]==os.environ["VERIFIED_SHA"]
+          jobs={j["name"]:j for j in json.load(open("jobs.json"))["jobs"]}
+          for name in ["verify","android","android-smoke"]:
+              assert jobs[name]["conclusion"]=="success"
           PY
           gh run download "$VERIFIED_RUN" -R "$GH_REPO" -n MeongRandy-Step29-Android-and-source --dir build
+          gh run download "$VERIFIED_RUN" -R "$GH_REPO" -n Android-emulator-verification --dir screenshots
           sha256sum -c build/SHA256SUMS.txt
-      - name: Upload and verify draft assets before publishing fixed download URLs
+          python3 - <<'PY'
+          import pathlib,struct
+          for name in ["00-start-screen.png","13-defeat-original.png","14-victory-original.png"]:
+              data=pathlib.Path("screenshots",name).read_bytes()
+              assert data[:8]==b"\x89PNG\r\n\x1a\n"
+              assert struct.unpack(">II",data[16:24])==(720,1280)
+          PY
+      - name: Publish verified APK and actual Android screenshots
         shell: bash
         run: |
           set -euo pipefail
@@ -42,22 +54,47 @@ jobs:
           files=json.load(open("changes.json"))["files"]
           assert len(files)<300
           for item in files:
-              path=item["filename"]
-              assert path.startswith(("game/tests/","docs/",".github/")), path
+              assert item["filename"].startswith(("docs/",".github/")),item["filename"]
           PY
+          cat > notes.md <<'EOF'
+          ## 멍랜디 0.31.0
+          Assets에서 MeongRandy-0.31.0-debug.apk를 휴대폰에 다운로드해 실행하세요. 압축 해제가 필요 없습니다.
+
+          - 승인한 원본 이미지 3장으로 시작·승리·패배 화면 적용. 실제 기록 표시, 다시하기 → 난이도 선택.
+          - 전 등급 소환 보관함, 필드 유닛 회수, 보관함+필드 재료 조합.
+          - 조합 결과는 즉시 필드 배치. 빈 칸이 없고 사용할 필드 재료도 없으면 재료를 소모하지 않음.
+          - 도감과 보관함: 소형견 → 중형견 → 대형견 → 맹수 → 신화 → 초월 → 히든.
+          - 라운드별 선택권 보상 제거. 뽑기별 100회 천장 유지.
+
+          기능 검사 45개 및 Android 에뮬레이터 설치·실행·터치·회수·저장·음악·승패 화면·다시하기 검사 통과. 첨부 PNG는 실제 Android 실행 화면입니다. 실제 휴대폰 성능은 별도 확인이 필요합니다.
+          EOF
+          gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
+          python3 - <<'PY'
+          import json,pathlib
+          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.0"]
+          assert len(releases)<=1
+          if releases:
+              assert releases[0]["draft"],"Refusing to overwrite a published release"
+          pathlib.Path("exists.txt").write_text("yes" if releases else "no")
+          PY
+          if [ "$(cat exists.txt)" = no ]; then
+            gh release create v0.31.0 build/MeongRandy-0.31.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt screenshots/00-start-screen.png screenshots/13-defeat-original.png screenshots/14-victory-original.png -R "$GH_REPO" --target "$GITHUB_SHA" --title "멍랜디 0.31.0 Android" --notes-file notes.md --draft --prerelease
+          fi
           gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
           python3 - <<'PY'
           import json,pathlib,hashlib
-          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.30.0"]
-          assert len(releases)==1
-          release=releases[0]
-          assert release["draft"], "Refusing to change a published release"
+          matches=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.0"]
+          assert len(matches)==1
+          release=matches[0]
+          assert release["draft"]
           assets={a["name"]:a for a in release["assets"]}
-          for name in ["MeongRandy-0.30.0-debug.apk","MeongRandy-Step29-source.zip","SHA256SUMS.txt"]:
-              data=pathlib.Path("build",name).read_bytes()
-              assert assets[name]["state"]=="uploaded"
-              assert assets[name]["size"]==len(data)
-              assert assets[name]["digest"]=="sha256:"+hashlib.sha256(data).hexdigest()
+          paths=["build/MeongRandy-0.31.0-debug.apk","build/MeongRandy-Step29-source.zip","build/SHA256SUMS.txt","screenshots/00-start-screen.png","screenshots/13-defeat-original.png","screenshots/14-victory-original.png"]
+          for filename in paths:
+              path=pathlib.Path(filename)
+              data=path.read_bytes()
+              asset=assets[path.name]
+              assert asset["state"]=="uploaded" and asset["size"]==len(data)
+              assert asset["digest"]=="sha256:"+hashlib.sha256(data).hexdigest()
           pathlib.Path("release-id.txt").write_text(str(release["id"]))
           PY
           release_id=$(cat release-id.txt)
