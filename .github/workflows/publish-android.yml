@@ -16,8 +16,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: jck35511/drd
-      VERIFIED_RUN: "41584380285"
-      VERIFIED_SHA: "f52fd86df2bff2bc528fe6216cc5eca45019014a"
+      VERIFIED_RUN: "42366345367"
+      VERIFIED_SHA: "098265b975fcaa58e3332f34c42707510f645429"
     steps:
       - name: Verify completed Android tests and download original artifacts
         shell: bash
@@ -57,38 +57,37 @@ jobs:
               assert item["filename"].startswith(("docs/",".github/")),item["filename"]
           PY
           cat > notes.md <<'EOF'
-          ## 멍랜디 0.31.0
-          Assets에서 MeongRandy-0.31.0-debug.apk를 휴대폰에 다운로드해 실행하세요. 압축 해제가 필요 없습니다.
+          ## 멍랜디 0.31.1
+          Assets에서 MeongRandy-0.31.1-debug.apk를 다운로드해 설치하세요. 압축 해제가 필요 없습니다.
 
-          - 승인한 원본 이미지 3장으로 시작·승리·패배 화면 적용. 실제 기록 표시, 다시하기 → 난이도 선택.
-          - 전 등급 소환 보관함, 필드 유닛 회수, 보관함+필드 재료 조합.
-          - 조합 결과는 즉시 필드 배치. 빈 칸이 없고 사용할 필드 재료도 없으면 재료를 소모하지 않음.
-          - 도감과 보관함: 소형견 → 중형견 → 대형견 → 맹수 → 신화 → 초월 → 히든.
-          - 라운드별 선택권 보상 제거. 뽑기별 100회 천장 유지.
+          - Godot 기본 로고를 제목과 강아지 그림만 있는 멍랜디 로딩 화면으로 교체했습니다. 추가 대기시간 없이 실제 시작창으로 전환합니다.
+          - 소환 보관함의 배치 버튼 옆에 판매를 추가했습니다. 한 번 누르면 1마리만 판매합니다.
+          - 기존 판매 가격 유지: 소형견 10G, 중형견 40G, 대형견 100G. 맹수·신화·초월·히든은 판매 불가입니다.
+          - 0.31.0의 원본 시작·결과창, 보관함 회수, 필드/보관함 재료 조합, 도감과 천장 변경을 포함합니다.
 
-          기능 검사 45개 및 Android 에뮬레이터 설치·실행·터치·회수·저장·음악·승패 화면·다시하기 검사 통과. 첨부 PNG는 실제 Android 실행 화면입니다. 실제 휴대폰 성능은 별도 확인이 필요합니다.
+          기능 검사 46개와 Android 에뮬레이터 검증을 통과했습니다. 실제 앱 시작 영상을 녹화해 사용자 로딩 화면을 확인했으며, 보관함 판매 후 수량·골드·저장 상태를 실제 터치로 검증했습니다. 실기기 성능은 별도 확인이 필요합니다.
           EOF
           gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
           python3 - <<'PY'
           import json,pathlib
-          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.0"]
+          releases=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.1"]
           assert len(releases)<=1
           if releases:
               assert releases[0]["draft"],"Refusing to overwrite a published release"
           pathlib.Path("exists.txt").write_text("yes" if releases else "no")
           PY
           if [ "$(cat exists.txt)" = no ]; then
-            gh release create v0.31.0 build/MeongRandy-0.31.0-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt screenshots/00-start-screen.png screenshots/13-defeat-original.png screenshots/14-victory-original.png -R "$GH_REPO" --target "$GITHUB_SHA" --title "멍랜디 0.31.0 Android" --notes-file notes.md --draft --prerelease
+            gh release create v0.31.1 build/MeongRandy-0.31.1-debug.apk build/MeongRandy-Step29-source.zip build/SHA256SUMS.txt screenshots/00-start-screen.png screenshots/13-defeat-original.png screenshots/14-victory-original.png screenshots/00-loading-screen.png screenshots/startup.mp4 -R "$GH_REPO" --target "$GITHUB_SHA" --title "멍랜디 0.31.1 Android" --notes-file notes.md --draft --prerelease
           fi
           gh api "repos/$GH_REPO/releases?per_page=100" > releases.json
           python3 - <<'PY'
           import json,pathlib,hashlib
-          matches=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.0"]
+          matches=[r for r in json.load(open("releases.json")) if r["tag_name"]=="v0.31.1"]
           assert len(matches)==1
           release=matches[0]
           assert release["draft"]
           assets={a["name"]:a for a in release["assets"]}
-          paths=["build/MeongRandy-0.31.0-debug.apk","build/MeongRandy-Step29-source.zip","build/SHA256SUMS.txt","screenshots/00-start-screen.png","screenshots/13-defeat-original.png","screenshots/14-victory-original.png"]
+          paths=["build/MeongRandy-0.31.1-debug.apk","build/MeongRandy-Step29-source.zip","build/SHA256SUMS.txt","screenshots/00-start-screen.png","screenshots/13-defeat-original.png","screenshots/14-victory-original.png","screenshots/00-loading-screen.png","screenshots/startup.mp4"]
           for filename in paths:
               path=pathlib.Path(filename)
               data=path.read_bytes()
